@@ -1,0 +1,9 @@
+{
+  "nombre": "caso_preliminar",
+  "descripcion": "Aire a 1 MPa y 300 K, 100 N de empuje, adaptada a Querétaro",
+  "gas": {"gamma": 1.4, "R": 287.0},
+  "camara": {"p0_Pa": 1.0e6, "T0_K": 300.0},
+  "ambiente": {"altitud_m": 1820.0},
+  "empuje_requerido_N": 100.0,
+  "presiones_exteriores_Pa": [980000, 683000, 484000, 300000, 101325]
+}
