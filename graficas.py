@@ -16,12 +16,29 @@ import numpy as np
 
 from geometria import contorno_exterior, muestrear
 
-# Paleta categórica (orden fijo) y tintas para texto y ejes
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
-TINTA = "#0b0b0b"
-TINTA_2 = "#52514e"
-REJILLA = "#e6e5e0"
-PARED = "#c9c6bd"
+# Identidad visual: azul acero y cian sobre fondo blanco
+AZUL = "#0284C7"       # modelo analítico 1D (línea continua)
+TEAL = "#0D9488"       # diferencia / error
+CARMESI = "#E11D48"    # datos de validación de SolidWorks
+TINTA = "#1E293B"      # texto
+TINTA_2 = "#475569"    # texto secundario y líneas de referencia
+EJES = "#334155"       # bordes de los ejes
+REJILLA = "#E2E8F0"    # rejilla principal y secundaria
+PARED = "#CBD5E1"      # pared de la tobera
+BORDE = "#CBD5E1"      # bordes de tarjetas y controles
+FONDO_TARJETA = "#F8FAFC"
+
+# Paleta categórica (orden fijo); la primera es el azul del modelo. Los rojos
+# se reservan para SolidWorks.
+SERIES = [AZUL, "#EA580C", TEAL, "#7C3AED", "#CA8A04", "#4F46E5", "#475569", "#65A30D"]
+
+plt.rcParams.update({
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
+    "figure.facecolor": "white",
+    "axes.facecolor": "white",
+    "savefig.facecolor": "white",
+})
 
 NOMBRES_REGIMEN = {
     "subsonico": "subsónico",
@@ -35,13 +52,16 @@ NOMBRES_REGIMEN = {
 
 
 def _estilo_ejes(ax):
-    ax.grid(True, color=REJILLA, linewidth=0.8)
+    ax.minorticks_on()
+    ax.grid(True, which="major", color=REJILLA, linewidth=0.9)
+    ax.grid(True, which="minor", color=REJILLA, linewidth=0.4, alpha=0.8)
     ax.set_axisbelow(True)
-    for lado in ("top", "right"):
-        ax.spines[lado].set_visible(False)
-    for lado in ("left", "bottom"):
-        ax.spines[lado].set_color(TINTA_2)
-    ax.tick_params(colors=TINTA_2, labelsize=9)
+    for lado in ("top", "right", "left", "bottom"):
+        ax.spines[lado].set_visible(True)
+        ax.spines[lado].set_color(EJES)
+        ax.spines[lado].set_linewidth(1.0)
+    ax.tick_params(which="both", colors=EJES, labelsize=9)
+    ax.tick_params(which="minor", length=2)
     ax.xaxis.label.set_color(TINTA)
     ax.yaxis.label.set_color(TINTA)
 
@@ -57,7 +77,7 @@ def _dibujar_tobera(ax, tramos, espesor, pared, completa=True):
     signos = (1, -1) if completa else (1,)
     for s in signos:
         ax.fill_between(xi * 1e3, s * ri * 1e3, s * re_i * 1e3, color=PARED, linewidth=0)
-        ax.plot(xi * 1e3, s * ri * 1e3, color=TINTA, linewidth=1.2)
+        ax.plot(xi * 1e3, s * ri * 1e3, color=AZUL, linewidth=1.5)
     ax.axhline(0, color=TINTA_2, linewidth=0.8, linestyle=(0, (6, 3, 1, 3)))
 
 

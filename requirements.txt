@@ -3,3 +3,7 @@ scipy>=1.11
 matplotlib>=3.8
 ezdxf>=1.1
 pytest>=8.0
+# Interfaz gráfica (app.py)
+streamlit>=1.50
+plotly>=5.20
+pandas>=2.0
