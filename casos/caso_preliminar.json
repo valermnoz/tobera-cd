@@ -21,7 +21,8 @@
     "radio_arco_entrada_rt": 2.0,
     "radio_garganta_arriba_rt": 1.5,
     "radio_garganta_abajo_rt": 1.5,
-    "espesor_pared_mm": 2.0
+    "espesor_pared_mm": 2.0,
+    "tipo_pared": "constante"
   },
   "presiones_exteriores_Pa": [
     980000,

@@ -24,6 +24,14 @@ calóricamente perfecto, isentrópico salvo a través de las ondas de choque.
 
 ## Uso
 
+Modo interactivo (pregunta los datos y guarda el caso en `casos/`):
+
+```
+python main.py
+```
+
+Con un caso guardado:
+
 ```
 python main.py casos/caso_preliminar.json
 ```
@@ -34,6 +42,10 @@ Los resultados se guardan en `salidas/<nombre del caso>/`:
 |---|---|
 | `resumen.txt` | Resumen legible de todo el caso |
 | `resultados.json` | Todos los resultados numéricos |
+| `distribucion.csv` | M, p y T sección por sección para cada presión exterior (se abre en Excel) |
+| `contorno.png` | Media sección de la tobera con sus cotas |
+| `presiones.png` | p/p0 a lo largo de la tobera para cada presión exterior |
+| `mach.png` | Número de Mach a lo largo de la tobera |
 | `contorno.dxf` | Perfil cerrado de media tobera (líneas y arcos exactos, en mm) y eje de revolución |
 | `contorno_xyz.txt` | Coordenadas X Y Z del contorno interior, en mm |
 | `dimensiones.txt` | Variables globales para las Ecuaciones de SolidWorks |
@@ -46,13 +58,22 @@ cónico. La garganta está en x = 0. Los ángulos, la relación de contracción,
 los radios de los arcos y el espesor de pared se editan en la sección
 `geometria` del caso.
 
+La pared exterior puede ser de espesor constante (`"tipo_pared": "constante"`,
+forma de tobera de cohete) o un tubo recto (`"cilindrica"`). En ambos casos los
+extremos quedan planos, listos para crear las tapas en Flow Simulation.
+
+El cálculo de M(x), p(x) y T(x) usa el área real de este contorno, así que la
+posición del choque que reporta el programa (en mm desde la garganta) es
+directamente comparable con la simulación.
+
 ## Modelado en SolidWorks
 
 Opción recomendada, con el DXF:
 
 1. Abrir `contorno.dxf` (Archivo → Abrir, tipo DXF) e importarlo como croquis
    en el plano Alzado, con unidades en milímetros.
-2. Operación **Revolución** del perfil cerrado alrededor de la línea de la capa EJE.
+2. Convertir la línea de la capa EJE en geometría constructiva.
+3. Operación **Revolución** del perfil cerrado alrededor de esa línea, 360°.
 
 Alternativas:
 
@@ -61,8 +82,13 @@ Alternativas:
 - **Croquis acotado** vinculado a `dimensiones.txt` desde Herramientas →
   Ecuaciones → Vincular a archivo externo.
 
-Para un caso nuevo, copiar `casos/caso_preliminar.json` y cambiar los valores.
-En `ambiente` se puede dar `altitud_m` (atmósfera estándar) o `pa_Pa` directamente.
+Para un caso nuevo se puede usar el modo interactivo o copiar
+`casos/caso_preliminar.json` y cambiar los valores:
+
+- En `ambiente` se da `altitud_m` (atmósfera estándar) o `pa_Pa` directamente.
+- `presiones_exteriores_Pa` es una lista en Pa o `"auto"` (una presión por régimen).
+  La presión ambiente de diseño siempre se analiza.
+- La sección `geometria` es opcional; lo que falte toma los valores por defecto.
 
 ## Pruebas
 
@@ -79,7 +105,9 @@ normal (gamma = 1.4) y contra el caso preliminar resuelto a mano.
 |---|---|
 | `flujo.py` | Relaciones isentrópicas, área–Mach, gasto estrangulado y choque normal |
 | `tobera.py` | Dimensionamiento, presiones críticas, régimen, posición del choque, empuje y distribución a lo largo de la tobera |
-| `geometria.py` | Contorno de la tobera y exportación a DXF, coordenadas XYZ y dimensiones |
+| `geometria.py` | Contorno de la tobera, pared exterior y exportación a DXF, coordenadas XYZ y dimensiones |
+| `graficas.py` | Gráficas de contorno, presión y Mach |
+| `interactivo.py` | Modo interactivo en la terminal |
 | `main.py` | Corre un caso completo y guarda resultados |
 | `casos/` | Archivos de entrada |
 | `tests/` | Pruebas automáticas |

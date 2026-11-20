@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from geometria import (
-    _extremos, area, contorno, exportar_dimensiones, exportar_dxf,
+    _extremos, area, contorno, contorno_exterior, exportar_dimensiones, exportar_dxf,
     exportar_xyz, muestrear, resumen_geometria,
 )
 
@@ -82,13 +82,14 @@ def test_exportar_xyz(tramos, tmp_path):
     assert datos[:, 1].min() == pytest.approx(DT / 2 * 1e3, rel=1e-6)  # en mm
 
 
-def test_exportar_dxf_perfil_cerrado(tramos, tmp_path):
+@pytest.mark.parametrize("pared, n_arcos", [("constante", 6), ("cilindrica", 3)])
+def test_exportar_dxf_perfil_cerrado(tramos, tmp_path, pared, n_arcos):
     ezdxf = pytest.importorskip("ezdxf")
     ruta = tmp_path / "c.dxf"
-    exportar_dxf(tramos, ruta, espesor=0.002)
+    exportar_dxf(tramos, ruta, espesor=0.002, pared=pared)
     msp = ezdxf.readfile(ruta).modelspace()
     contorno_dxf = [e for e in msp if e.dxf.layer == "CONTORNO"]
-    assert len(msp.query("ARC")) == 3
+    assert len(msp.query("ARC")) == n_arcos
     # Perfil cerrado: cada extremo aparece exactamente dos veces
     puntos = []
     for e in contorno_dxf:
@@ -108,3 +109,28 @@ def test_exportar_dimensiones(tramos, tmp_path):
     texto = ruta.read_text(encoding="utf-8")
     assert '"D_garganta" = 9.9115' in texto
     assert '"espesor_pared" = 2.0000' in texto
+
+
+def test_pared_constante_tiene_espesor_uniforme(tramos):
+    # Cada tramo exterior está a 'espesor' de su tramo interior
+    e = 0.002
+    for ti, te in zip(tramos, contorno_exterior(tramos, e)):
+        if ti["tipo"] == "arco":
+            assert abs(ti["R"] - te["R"]) == pytest.approx(e)
+        else:
+            (x0, r0), (x1, r1) = ti["p0"], ti["p1"]
+            (xe, re_) = te["p0"]
+            # distancia del punto exterior a la recta interior
+            d = abs((x1 - x0) * (r0 - re_) - (x0 - xe) * (r1 - r0)) / math.hypot(x1 - x0, r1 - r0)
+            assert d == pytest.approx(e)
+
+
+def test_pared_constante_salida_plana(tramos):
+    ext = contorno_exterior(tramos, 0.002)
+    assert _extremos(ext[-1])[1][0] == pytest.approx(_extremos(tramos[-1])[1][0])
+    assert _extremos(ext[0])[0][0] == pytest.approx(_extremos(tramos[0])[0][0])
+
+
+def test_pared_demasiado_gruesa(tramos):
+    with pytest.raises(ValueError):
+        contorno_exterior(tramos, 0.010)  # mayor que el radio de garganta (7.4 mm)
