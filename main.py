@@ -4,14 +4,18 @@ main.py — Corre un caso completo de TOBERA-CD.
 Uso:
     python main.py casos/caso_preliminar.json
 
-Lee el caso, dimensiona la tobera, calcula las presiones críticas y
-analiza cada presión exterior. Escribe los resultados en salidas/<caso>/.
+Lee el caso, dimensiona la tobera, genera su contorno, calcula las
+presiones críticas y analiza cada presión exterior. Escribe los
+resultados y los archivos para SolidWorks en salidas/<caso>/.
 """
 
 import json
 import sys
 from pathlib import Path
 
+from geometria import (
+    contorno, exportar_dimensiones, exportar_dxf, exportar_xyz, resumen_geometria,
+)
 from tobera import (
     coeficiente_empuje, dimensionar, empuje, estado_salida,
     presion_atmosferica, presiones_criticas,
@@ -36,6 +40,20 @@ def leer_caso(ruta):
     return caso
 
 
+def parametros_geometria(caso):
+    """Parámetros del contorno en las unidades que usa geometria.contorno()."""
+    g = caso["geometria"]
+    return {
+        "ang_conv": g["angulo_convergente_deg"],
+        "ang_div": g["angulo_divergente_deg"],
+        "relacion_contraccion": g["relacion_contraccion"],
+        "L_recta": g["longitud_recta_entrada_mm"] / 1e3,
+        "f_entrada": g["radio_arco_entrada_rt"],
+        "f_arriba": g["radio_garganta_arriba_rt"],
+        "f_abajo": g["radio_garganta_abajo_rt"],
+    }
+
+
 def correr(caso):
     g, R = caso["gas"]["gamma"], caso["gas"]["R"]
     p0, T0 = caso["camara"]["p0_Pa"], caso["camara"]["T0_K"]
@@ -43,6 +61,7 @@ def correr(caso):
 
     diseno = dimensionar(p0, T0, pa, F, g, R)
     crit = presiones_criticas(p0, diseno["Ae_At"], g)
+    tramos = contorno(diseno["Dt"], diseno["De"], **parametros_geometria(caso))
 
     # Siempre se analiza también la presión ambiente de diseño
     presiones = sorted(set(caso["presiones_exteriores_Pa"]) | {pa}, reverse=True)
@@ -62,7 +81,13 @@ def correr(caso):
             "CF": coeficiente_empuje(Fb, p0, diseno["At"]),
             "choque": s["choque"],
         })
-    return {"diseno": diseno, "criticas": crit, "analisis": analisis}
+    return {
+        "diseno": diseno,
+        "criticas": crit,
+        "analisis": analisis,
+        "tramos": tramos,
+        "geometria": resumen_geometria(tramos),
+    }
 
 
 def resumen(caso, res):
@@ -80,6 +105,12 @@ def resumen(caso, res):
         f"  Diámetro de garganta D*  {d['Dt']*1e3:9.2f} mm",
         f"  Diámetro de salida De    {d['De']*1e3:9.2f} mm",
         f"  Coeficiente de empuje CF {d['CF']:9.3f}",
+        "",
+        "GEOMETRÍA (garganta en x = 0)",
+        f"  Diámetro de entrada      {2*res['geometria']['r_entrada']*1e3:9.2f} mm",
+        f"  Longitud entrada-garganta {res['geometria']['L_aguas_arriba']*1e3:8.2f} mm",
+        f"  Longitud del divergente  {res['geometria']['L_divergente']*1e3:9.2f} mm",
+        f"  Longitud total           {res['geometria']['L_total']*1e3:9.2f} mm",
         "",
         "PRESIONES CRÍTICAS",
         f"  p1 (subsónica, M=1 en garganta)  {c['p1']/1e3:8.1f} kPa",
@@ -114,8 +145,19 @@ def main():
     salida.mkdir(parents=True, exist_ok=True)
     (salida / "resumen.txt").write_text(texto, encoding="utf-8")
     with open(salida / "resultados.json", "w", encoding="utf-8") as f:
-        json.dump(res, f, indent=2, ensure_ascii=False)
-    print(f"\nResultados guardados en {salida}/")
+        datos = {k: v for k, v in res.items() if k != "tramos"}
+        json.dump(datos, f, indent=2, ensure_ascii=False)
+
+    # Archivos para SolidWorks
+    d = res["diseno"]
+    pg = parametros_geometria(caso)
+    espesor = caso["geometria"]["espesor_pared_mm"] / 1e3
+    exportar_xyz(res["tramos"], salida / "contorno_xyz.txt")
+    exportar_dxf(res["tramos"], salida / "contorno.dxf", espesor)
+    exportar_dimensiones(d["Dt"], d["De"], res["geometria"], salida / "dimensiones.txt",
+                         espesor=espesor, **pg)
+
+    print(f"\nResultados guardados en {salida.resolve()}")
 
 
 if __name__ == "__main__":
