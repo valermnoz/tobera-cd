@@ -1,0 +1,481 @@
+"""
+app.py — Interfaz gráfica de TOBERA-CD (Streamlit).
+
+Uso:
+    streamlit run app.py
+
+Flujo en tres pestañas:
+  Caso          abrir o crear el .json, ver el perfil y simular
+  Resultados    resumen, presión estática y Mach (después de simular)
+  Validación    comparar con el CSV de SolidWorks (después de simular y de
+                correr Flow Simulation sobre el contorno generado)
+
+Esta capa solo maneja la interfaz. Los cálculos están en configuracion.py,
+main.py y los módulos de cálculo; el resumen se lee con resumen_txt.py, la
+comparación está en comparacion.py y las figuras en graficas_gui.py.
+"""
+
+from html import escape
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
+import comparacion as cmp
+import configuracion as cfg
+import estilo
+from geometria import GEOMETRIA_DEFECTO
+from graficas_gui import figura_distribucion, figura_error, figura_geometria, figura_superpuesta
+from interactivo import DESCRIPCION_GEOMETRIA
+from main import NOMBRES_REGIMEN
+from resumen_txt import parsear_resumen
+
+st.set_page_config(page_title="Simulación y Validación de Toberas", layout="wide")
+estilo.aplicar()
+
+DIR_ASSETS = Path(__file__).parent / "assets"
+OPCION_NUEVO = "(caso nuevo)"
+CAMPOS = ("nombre", "descripcion", "gamma", "R", "p0_MPa", "T0_K", "altitud_m", "pa_kPa",
+          "F_N", "pb_kPa")
+
+# Límites de los campos de geometría: (mínimo, máximo, paso)
+LIMITES_GEOMETRIA = {
+    "angulo_convergente_deg": (1.0, 89.0, 1.0),
+    "angulo_divergente_deg": (1.0, 89.0, 0.5),
+    "relacion_contraccion": (1.01, 100.0, 0.5),
+    "longitud_recta_entrada_mm": (0.0, 1000.0, 1.0),
+    "radio_arco_entrada_rt": (0.01, 20.0, 0.1),
+    "radio_garganta_arriba_rt": (0.01, 20.0, 0.1),
+    "radio_garganta_abajo_rt": (0.01, 20.0, 0.1),
+    "espesor_pared_mm": (0.01, 100.0, 0.5),
+}
+PAREDES = {"constante": "Espesor constante", "cilindrica": "Tubo recto"}
+
+
+# ---------------------------------------------------------------------
+# Estado del formulario
+# ---------------------------------------------------------------------
+
+def cargar_en_formulario(caso, origen):
+    """Pasa un caso a los widgets del formulario."""
+    v = cfg.valores_formulario(caso)
+    for campo in CAMPOS:
+        st.session_state[f"f_{campo}"] = v[campo]
+    st.session_state["f_ambiente"] = "Altitud" if v["por_altitud"] else "Presión"
+    for clave, valor in v["geometria"].items():
+        st.session_state[f"g_{clave}"] = valor
+    st.session_state["origen_caso"] = origen
+    st.session_state.pop("resultado", None)
+
+
+def valores_actuales():
+    v = {campo: st.session_state[f"f_{campo}"] for campo in CAMPOS}
+    v["por_altitud"] = st.session_state["f_ambiente"] == "Altitud"
+    v["geometria"] = {clave: st.session_state[f"g_{clave}"] for clave in GEOMETRIA_DEFECTO}
+    return v
+
+
+def _al_elegir_caso():
+    sel = st.session_state["sel_caso"]
+    try:
+        if sel == OPCION_NUEVO:
+            cargar_en_formulario(cfg.CASO_NUEVO, "caso nuevo")
+        else:
+            cargar_en_formulario(cfg.leer_json(Path(sel).read_text(encoding="utf-8")), sel)
+    except (OSError, ValueError) as e:
+        st.session_state["aviso"] = ("error", str(e))
+
+
+def inicializar():
+    if "f_nombre" in st.session_state:
+        return
+    preliminar = cfg.DIR_CASOS / "caso_preliminar.json"
+    ruta = preliminar if preliminar.exists() else next(iter(cfg.listar_casos()), None)
+    if ruta is not None:
+        try:
+            cargar_en_formulario(cfg.leer_json(ruta.read_text(encoding="utf-8")), str(ruta))
+            st.session_state["sel_caso"] = str(ruta)
+            return
+        except (OSError, ValueError):
+            pass
+    cargar_en_formulario(cfg.CASO_NUEVO, "caso nuevo")
+
+
+# ---------------------------------------------------------------------
+# Pestaña: caso
+# ---------------------------------------------------------------------
+
+def _formulario():
+    c1, c2 = st.columns([1, 2])
+    c1.text_input("Nombre del caso", key="f_nombre")
+    c2.text_input("Descripción", key="f_descripcion")
+
+    gas, camara, ambiente, diseno = st.columns(4)
+    with gas:
+        st.number_input("gamma [–]", min_value=1.01, max_value=1.67, step=0.01,
+                        format="%.3f", key="f_gamma")
+        st.number_input("R [J/(kg·K)]", min_value=1.0, max_value=5000.0, step=1.0,
+                        format="%.2f", key="f_R")
+    with camara:
+        st.number_input("Presión de cámara p0 [MPa]", min_value=0.01, max_value=100.0,
+                        step=0.1, format="%.4f", key="f_p0_MPa")
+        st.number_input("Temperatura de cámara T0 [K]", min_value=1.0, max_value=5000.0,
+                        step=10.0, format="%.1f", key="f_T0_K")
+    with ambiente:
+        por_altitud = st.radio("Ambiente definido por", ["Altitud", "Presión"],
+                               horizontal=True, key="f_ambiente") == "Altitud"
+        # Se dibujan los dos campos (uno deshabilitado) para que Streamlit
+        # conserve el valor del que no se usa.
+        st.number_input("Altitud [m]", min_value=-500.0, max_value=11000.0, step=100.0,
+                        key="f_altitud_m", disabled=not por_altitud)
+        st.number_input("Presión ambiente [kPa]", min_value=0.001, max_value=10000.0,
+                        step=1.0, format="%.3f", key="f_pa_kPa", disabled=por_altitud)
+    with diseno:
+        st.number_input("Empuje requerido [N]", min_value=0.001, max_value=1e7, step=10.0,
+                        format="%.3f", key="f_F_N")
+        st.text_input("Presiones exteriores [kPa]", key="f_pb_kPa",
+                      help='Lista separada por comas, o "auto" para una por régimen. '
+                           "La presión ambiente de diseño siempre se analiza.")
+
+    with st.expander("Geometría"):
+        columnas = st.columns(4)
+        for i, (clave, texto) in enumerate(DESCRIPCION_GEOMETRIA.items()):
+            minimo, maximo, paso = LIMITES_GEOMETRIA[clave]
+            columnas[i % 4].number_input(texto, min_value=minimo, max_value=maximo,
+                                         step=paso, format="%.3f", key=f"g_{clave}")
+        st.radio("Pared exterior", list(PAREDES), format_func=PAREDES.get, horizontal=True,
+                 key="g_tipo_pared")
+
+
+def _guardar_y_simular(caso, simular):
+    try:
+        ruta = cfg.guardar_caso(caso, sobrescribir=True)
+        mensaje = f"Caso guardado en {ruta}."
+        if simular:
+            with st.spinner("Simulando..."):
+                resultado = cfg.ejecutar(caso)
+            resultado["id"] = st.session_state.get("n_corridas", 0) + 1
+            st.session_state["n_corridas"] = resultado["id"]
+            st.session_state["resultado"] = resultado
+            mensaje += f" Resultados en {resultado['salida']}/. Revisa la pestaña Resultados."
+    except (OSError, ValueError, ArithmeticError) as e:
+        st.session_state["aviso"] = ("error", f"No se pudo completar la operación: {e}")
+    else:
+        st.session_state["origen_caso"] = str(ruta)
+        st.session_state["_sel_pendiente"] = str(ruta)
+        st.session_state["aviso"] = ("success", mensaje)
+    st.rerun()
+
+
+def pestana_caso():
+    opciones = [OPCION_NUEVO] + [str(c) for c in cfg.listar_casos()]
+    if st.session_state.get("sel_caso") not in opciones:
+        st.session_state["sel_caso"] = OPCION_NUEVO
+
+    c1, c2 = st.columns(2)
+    c1.selectbox("Abrir un caso de la carpeta casos/", opciones, key="sel_caso",
+                 on_change=_al_elegir_caso)
+    archivo = c2.file_uploader("O subir un archivo .json", type=["json"], key="subir_json")
+    if archivo is not None:
+        firma = (archivo.name, archivo.size)
+        if st.session_state.get("_firma_json") != firma:
+            st.session_state["_firma_json"] = firma
+            try:
+                cargar_en_formulario(cfg.leer_json(archivo.getvalue().decode("utf-8-sig")),
+                                     archivo.name)
+                st.session_state["aviso"] = ("success", f"Caso cargado desde {archivo.name}.")
+            except (UnicodeDecodeError, ValueError) as e:
+                st.session_state["aviso"] = ("error", str(e))
+
+    aviso = st.session_state.pop("aviso", None)
+    if aviso:
+        getattr(st, aviso[0])(aviso[1])
+    st.caption(f"Editando: {st.session_state.get('origen_caso', '-')}")
+
+    _formulario()
+
+    try:
+        caso, error = cfg.construir_caso(valores_actuales()), None
+    except ValueError as e:
+        caso, error = None, str(e)
+
+    b1, b2, _ = st.columns([1, 1, 4])
+    guardar = b1.button("Guardar", disabled=caso is None)
+    simular = b2.button("Guardar y simular", type="primary", disabled=caso is None)
+    if caso is None:
+        st.error(f"Revisa el formulario: {error}")
+    else:
+        st.download_button("Descargar .json", cfg.caso_a_json(caso),
+                           file_name=f"{caso['nombre']}.json", mime="application/json")
+    if guardar or simular:
+        _guardar_y_simular(caso, simular)
+
+    st.divider()
+    st.subheader("Perfil de la tobera")
+    if caso is None:
+        return
+    try:
+        pre = cfg.geometria_preliminar(caso)
+    except (ValueError, ArithmeticError) as e:
+        st.error(f"No se puede construir la tobera con estos datos: {e}")
+        return
+    d, geo, g = pre["diseno"], pre["geometria"], pre["caso"]["geometria"]
+    st.plotly_chart(figura_geometria(pre["tramos"], geo, d, g["espesor_pared_mm"] / 1e3,
+                                     g["tipo_pared"]), theme=None)
+
+
+# ---------------------------------------------------------------------
+# Pestaña: resultados
+# ---------------------------------------------------------------------
+
+def mostrar_tabla(df, derecha=()):
+    """
+    Tabla de datos en HTML (clase tabla-datos, ver estilo.py). Las columnas de
+    'derecha' son numéricas: van alineadas a la derecha y en fuente monoespaciada.
+    """
+    def celda(etiqueta, valor, columna):
+        clase = "num" if columna in derecha else "txt"
+        return f'<{etiqueta} class="{clase}">{escape(str(valor))}</{etiqueta}>'
+
+    cabecera = "".join(celda("th", c, c) for c in df.columns)
+    filas = "".join("<tr>" + "".join(celda("td", v, c) for c, v in fila.items()) + "</tr>"
+                    for _, fila in df.iterrows())
+    st.markdown(f'<div class="tabla-datos"><table><thead><tr>{cabecera}</tr></thead>'
+                f"<tbody>{filas}</tbody></table></div>", unsafe_allow_html=True)
+
+
+KPIS = ("Mach de salida", "Diámetro de garganta", "Diámetro de salida", "Gasto másico",
+        "Longitud total")
+
+
+def _boton_archivo(resultado, nombre, mime, etiqueta, columna=st, prefijo="res"):
+    ruta = resultado["salida"] / nombre
+    if ruta.exists():
+        columna.download_button(etiqueta, ruta.read_bytes(), file_name=nombre, mime=mime,
+                                key=f"{prefijo}_{nombre}_{resultado['id']}")
+
+
+def pestana_resultados(resultado):
+    if resultado is None:
+        st.info("Aún no hay resultados. Guarda y simula un caso en la pestaña Caso.")
+        return
+    caso, res = resultado["caso"], resultado["res"]
+    try:
+        datos = parsear_resumen(resultado["resumen"])
+    except ValueError as e:
+        st.error(str(e))
+        return
+
+    st.subheader(datos["nombre"])
+    if datos["descripcion"]:
+        st.caption(datos["descripcion"])
+
+    valores = datos["dimensionamiento"] + datos["geometria"]
+    elegidos = [next(v for v in valores if v["nombre"].startswith(k)) for k in KPIS
+                if any(v["nombre"].startswith(k) for v in valores)]
+    for col, v in zip(st.columns(len(elegidos)), elegidos):
+        col.metric(v["nombre"], f"{v['texto']} {v['unidad']}".strip())
+
+    st.markdown("**Análisis por presión exterior**")
+    def fmt(valor, formato):
+        return "–" if valor is None else format(valor, formato)
+
+    filas = [{
+        "p_b [kPa]": fmt(a["pb_kPa"], ".1f"), "Régimen": a["regimen"],
+        "Me": fmt(a["Me"], ".3f"), "Gasto [kg/s]": fmt(a["m_kg_s"], ".4f"),
+        "Empuje [N]": fmt(a["F_N"], ".2f"),
+        "x del choque [mm]": fmt((a["choque"] or {}).get("x_mm"), ".2f"),
+    } for a in datos["analisis"]]
+    mostrar_tabla(pd.DataFrame(filas), derecha=["p_b [kPa]", "Me", "Gasto [kg/s]",
+                                                "Empuje [N]", "x del choque [mm]"])
+
+    with st.expander("Todos los valores de resumen.txt"):
+        filas = [{"Sección": titulo, "Parámetro": v["etiqueta"], "Valor": v["texto"],
+                  "Unidad": v["unidad"]}
+                 for clave, titulo in (("dimensionamiento", "Dimensionamiento"),
+                                       ("geometria", "Geometría"),
+                                       ("criticas", "Presiones críticas"))
+                 for v in datos[clave]]
+        mostrar_tabla(pd.DataFrame(filas), derecha=["Valor"])
+
+    st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "p"), theme=None)
+    st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "M"), theme=None)
+
+    st.caption(f"Archivos en {resultado['salida']}/")
+    cols = st.columns(4)
+    _boton_archivo(resultado, "resumen.txt", "text/plain", "Descargar resumen.txt", cols[0])
+    _boton_archivo(resultado, "distribucion.csv", "text/csv", "Descargar distribucion.csv", cols[1])
+    _boton_archivo(resultado, "contorno.dxf", "application/dxf", "Descargar contorno.dxf", cols[2])
+    _boton_archivo(resultado, "dimensiones.txt", "text/plain", "Descargar dimensiones.txt", cols[3])
+
+
+# ---------------------------------------------------------------------
+# Pestaña: validación con SolidWorks
+# ---------------------------------------------------------------------
+
+def _indice(opciones, valor):
+    return opciones.index(valor) if valor in opciones else 0
+
+
+def pestana_validacion(resultado):
+    if resultado is None:
+        st.info("Primero simula un caso en la pestaña Caso. La comparación usa sus resultados.")
+        return
+    caso, res = resultado["caso"], resultado["res"]
+    geo = res["geometria"]
+
+    st.markdown(
+        "1. Descarga el contorno y modélalo en SolidWorks (ver README).\n"
+        "2. Corre la simulación en Flow Simulation y exporta los resultados a lo largo "
+        "del eje de la tobera como .csv.\n"
+        "3. Sube el .csv aquí."
+    )
+    _boton_archivo(resultado, "contorno.dxf", "application/dxf", "Descargar contorno.dxf",
+                   prefijo="val")
+
+    archivo = st.file_uploader("Resultados de SolidWorks (.csv)", type=["csv", "txt"],
+                               key="subir_csv")
+    if archivo is None:
+        return
+    try:
+        tabla = cmp.leer_csv_solidworks(archivo.getvalue())
+    except ValueError as e:
+        st.error(f"No se pudo leer el CSV: {e}")
+        return
+
+    columnas = list(tabla.columns)
+    auto = cmp.detectar_columnas(columnas)
+    sufijo = f"{archivo.name}_{archivo.size}"  # reinicia los widgets con cada archivo
+    ninguna = "(ninguna)"
+    opciones_y = [ninguna] + columnas
+
+    analisis = res["analisis"]
+    etiquetas = [f"{a['pb_Pa']/1e3:.1f} kPa · {NOMBRES_REGIMEN[a['regimen']]}" for a in analisis]
+    i_diseno = next((i for i, a in enumerate(analisis) if a["pb_Pa"] == caso["pa_Pa"]), 0)
+
+    c = st.columns(4)
+    col_x = c[0].selectbox("Columna de posición", columnas,
+                           index=_indice(columnas, auto["x"]), key=f"cx_{sufijo}")
+    col_p = c[1].selectbox("Columna de presión estática", opciones_y,
+                           index=_indice(opciones_y, auto["p"] or ninguna), key=f"cp_{sufijo}")
+    col_M = c[2].selectbox("Columna de número de Mach", opciones_y,
+                           index=_indice(opciones_y, auto["M"] or ninguna), key=f"cM_{sufijo}")
+    i_pb = c[3].selectbox("Presión exterior simulada", list(range(len(etiquetas))),
+                          index=i_diseno, format_func=lambda i: etiquetas[i],
+                          key=f"pb_{sufijo}_{resultado['id']}")
+
+    with st.expander("Unidades y alineación"):
+        a = st.columns(5)
+        unidades_l, unidades_p = list(cmp.A_MM), list(cmp.A_PA)
+        u_x = a[0].selectbox("Unidad de posición", unidades_l, key=f"ux_{sufijo}_{col_x}",
+                             index=_indice(unidades_l,
+                                           cmp.unidad_en_nombre(col_x, unidades_l) or "m"))
+        u_p = a[1].selectbox("Unidad de presión", unidades_p, key=f"up_{sufijo}_{col_p}",
+                             index=_indice(unidades_p,
+                                           cmp.unidad_en_nombre(col_p, unidades_p) or "Pa"))
+        origen = a[2].selectbox("x = 0 del CSV está en", list(cmp.ORIGENES),
+                                format_func=cmp.ORIGENES.get, key="sw_origen")
+        desplazamiento = a[3].number_input("Desplazamiento [mm]", step=0.1, format="%.3f",
+                                           key="sw_desplazamiento")
+        invertir = a[4].checkbox("El flujo va en -x", key="sw_invertir")
+        st.caption(f"Tobera del modelo: de x = {geo['x_entrada']*1e3:.2f} mm (entrada) a "
+                   f"{geo['x_salida']*1e3:.2f} mm (salida).")
+
+    if col_p == ninguna and col_M == ninguna:
+        st.warning("Elige al menos la columna de presión o la de Mach.")
+        return
+
+    modo = st.radio("Error a graficar", ["porcentual", "absoluto"], horizontal=True,
+                    format_func=str.capitalize)
+    d = res["distribuciones"][i_pb]
+    x_modelo = res["x"] * 1e3
+    if d["x_choque"] is not None:
+        st.caption(f"Con esta presión hay un choque normal en x = {d['x_choque']*1e3:.2f} mm. "
+                   "El CFD lo reparte en varias celdas, así que el error local ahí es grande.")
+
+    variables = []
+    if col_p != ninguna:
+        variables.append(("Presión estática", "kPa", "p", col_p, cmp.A_PA[u_p] / 1e3, d["p"] / 1e3))
+    if col_M != ninguna:
+        variables.append(("Número de Mach", "–", "M", col_M, 1.0, d["M"]))
+
+    x_sw = cmp.alinear_x(tabla[col_x].to_numpy() * cmp.A_MM[u_x], geo, origen, invertir,
+                         desplazamiento)
+    comparaciones = {}
+    for nombre, unidad, clave, col, factor, y_modelo in variables:
+        st.subheader(nombre)
+        try:
+            comp = cmp.comparar(x_modelo, y_modelo, x_sw, tabla[col].to_numpy() * factor)
+        except ValueError as e:
+            st.error(str(e))
+            continue
+        comparaciones["p_kPa" if clave == "p" else "M"] = comp
+        m = comp["metricas"]
+        sufijo_u = "" if unidad == "–" else f" {unidad}"
+        k = st.columns(4)
+        k[0].metric("RMSE", f"{m['rmse']:.4g}{sufijo_u}")
+        k[1].metric("Error medio", f"{m['error_medio_pct']:.2f} %")
+        k[2].metric("Error máximo", f"{m['error_max_pct']:.2f} %",
+                    help=f"Diferencia máxima {m['dif_max']:+.4g}{sufijo_u} en x = "
+                         f"{m['x_dif_max_mm']:.2f} mm")
+        k[3].metric("Cobertura de la tobera", f"{m['cobertura_pct']:.0f} %")
+        g1, g2 = st.columns(2)
+        g1.plotly_chart(figura_superpuesta(x_modelo, y_modelo, comp, nombre, unidad),
+                        theme=None, key=f"sup_{clave}")
+        g2.plotly_chart(figura_error(comp, nombre, unidad, modo), theme=None,
+                        key=f"err_{clave}")
+
+    if comparaciones:
+        st.download_button("Descargar tabla de comparación (.csv)",
+                           cmp.tabla_comparacion(comparaciones).to_csv(index=False).encode("utf-8"),
+                           file_name=f"comparacion_solidworks_{caso['nombre']}.csv",
+                           mime="text/csv")
+
+
+# ---------------------------------------------------------------------
+# Página
+# ---------------------------------------------------------------------
+
+IMAGENES = (
+    ("rs25_toberas.jpg", "Toberas de los motores RS-25 del cohete SLS. Foto: NASA/Eric Bordelon."),
+    ("x2_diamantes_choque.jpg", "Diamantes de choque en el escape del X-2. Foto: NASA."),
+)
+
+
+def encabezado():
+    """Título y dos fotografías de referencia (créditos en assets/CREDITOS.md)."""
+    texto, *columnas = st.columns([2.2, 1, 1])
+    with texto:
+        st.title("Interfaz de Simulación y Validación de Toberas")
+        st.markdown(
+            "**Datos necesarios**\n"
+            "- Gas: γ y R\n"
+            "- Cámara: presión y temperatura\n"
+            "- Ambiente: altitud o presión\n"
+            "- Empuje requerido\n"
+            "- Para validar: .csv de SolidWorks"
+        )
+    for col, (archivo, pie) in zip(columnas, IMAGENES):
+        ruta = DIR_ASSETS / archivo
+        if ruta.exists():
+            col.image(str(ruta), caption=pie)
+
+
+def main():
+    pendiente = st.session_state.pop("_sel_pendiente", None)
+    if pendiente:
+        st.session_state["sel_caso"] = pendiente
+    inicializar()
+
+    encabezado()
+    tab_caso, tab_res, tab_val = st.tabs(["Caso", "Resultados", "Validación SolidWorks"])
+    resultado = st.session_state.get("resultado")
+    with tab_caso:
+        pestana_caso()
+    with tab_res:
+        pestana_resultados(resultado)
+    with tab_val:
+        pestana_validacion(resultado)
+
+
+main()

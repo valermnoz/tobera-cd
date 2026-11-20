@@ -36,6 +36,25 @@ Con un caso guardado:
 python main.py casos/caso_preliminar.json
 ```
 
+Interfaz gráfica (se abre en el navegador):
+
+```
+streamlit run app.py
+```
+
+La interfaz tiene tres pestañas:
+
+1. **Caso**: abrir un `.json` de `casos/` o subir uno, editarlo en el
+   formulario (o empezar uno nuevo), guardarlo y simularlo. El perfil de la
+   tobera se actualiza al editar.
+2. **Resultados** (después de simular): resumen del caso, presión estática y
+   Mach a lo largo de la tobera, y descarga de `contorno.dxf` y demás archivos.
+3. **Validación SolidWorks** (después de simular): se modela `contorno.dxf` en
+   SolidWorks, se corre Flow Simulation y se sube el `.csv` para compararlo.
+
+Al guardar, el caso se escribe en `casos/<nombre>.json` y reemplaza el archivo
+si ya existía.
+
 Los resultados se guardan en `salidas/<nombre del caso>/`:
 
 | Archivo | Contenido |
@@ -90,6 +109,23 @@ Para un caso nuevo se puede usar el modo interactivo o copiar
   La presión ambiente de diseño siempre se analiza.
 - La sección `geometria` es opcional; lo que falte toma los valores por defecto.
 
+## Validación con Flow Simulation
+
+En la pestaña *Validación SolidWorks* se sube el `.csv` con los resultados
+CFD sobre una línea en el eje (XY Plot o Point Parameters). Se aceptan
+separador `,`, `;` o tabulador, coma decimal y líneas de título antes del
+encabezado. Las columnas de posición, presión estática y Mach se detectan por
+nombre (`X [m]`, `Pressure [Pa]`, `Mach Number`, también en español) y se
+pueden corregir a mano junto con sus unidades.
+
+La coordenada del CSV se lleva al eje del modelo (garganta en x = 0) según
+dónde esté su origen: en la garganta (modelo hecho con `contorno.dxf`), en la
+entrada, en la salida o en el primer punto del CSV; también se puede invertir
+el sentido y sumar un desplazamiento. Los valores de SolidWorks se interpolan
+linealmente en los nodos del modelo que caen dentro del tramo del CSV, y se
+grafican superpuestos junto con la diferencia (código − SolidWorks) y el error
+relativo a SolidWorks en %. La tabla alineada se puede descargar en `.csv`.
+
 ## Pruebas
 
 ```
@@ -109,6 +145,14 @@ normal (gamma = 1.4) y contra el caso preliminar resuelto a mano.
 | `graficas.py` | Gráficas de contorno, presión y Mach |
 | `interactivo.py` | Modo interactivo en la terminal |
 | `main.py` | Corre un caso completo y guarda resultados |
+| `app.py` | Interfaz gráfica (Streamlit); solo maneja la interfaz |
+| `configuracion.py` | Leer, armar, guardar, previsualizar y ejecutar casos para la interfaz |
+| `resumen_txt.py` | Lectura de `resumen.txt` como datos estructurados |
+| `comparacion.py` | Lectura del CSV de SolidWorks, alineación, interpolación y error |
+| `graficas_gui.py` | Gráficas interactivas (Plotly) de la interfaz |
+| `estilo.py` | CSS de la interfaz (bordes, fuentes monoespaciadas en valores numéricos, fotos) |
+| `.streamlit/config.toml` | Tema claro de Streamlit (azul ingeniería, gris frío) |
+| `assets/` | Fotografías del encabezado de la interfaz (dominio público, NASA); créditos en `assets/CREDITOS.md` |
 | `casos/` | Archivos de entrada |
 | `tests/` | Pruebas automáticas |
 
