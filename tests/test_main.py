@@ -81,3 +81,18 @@ def test_modo_interactivo(monkeypatch, tmp_path):
     assert json.loads((tmp_path / "casos" / "prueba.json").read_text(encoding="utf-8"))
     r = correr(completar_caso(caso))
     assert r["diseno"]["Me"] > 2.0
+
+
+def test_caso_con_unidades_equivocadas():
+    caso = leer_caso(CASO)
+    caso["camara"]["p0_Pa"] = 5.0e12  # 5e6 "MPa" escrito por error
+    with pytest.raises(ValueError, match="unidades"):
+        completar_caso(caso)
+
+
+def test_interactivo_rechaza_presion_en_pascales(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    respuestas = iter(["", "x", "", "5.0e6", "5", "", "", "", "", "", "", ""])
+    monkeypatch.setattr("builtins.input", lambda _: next(respuestas))
+    caso = interactivo.preguntar_caso()
+    assert caso["camara"]["p0_Pa"] == 5e6  # el 5.0e6 se rechazó y se aceptó el 5

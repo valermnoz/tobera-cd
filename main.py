@@ -47,7 +47,28 @@ def completar_caso(caso):
     caso["pa_Pa"] = amb.get("pa_Pa") or presion_atmosferica(amb["altitud_m"])
     caso["geometria"] = {**GEOMETRIA_DEFECTO, **caso.get("geometria", {})}
     caso.setdefault("presiones_exteriores_Pa", "auto")
+    revisar_caso(caso)
     return caso
+
+
+def revisar_caso(caso):
+    """
+    Detecta valores fuera de rango antes de calcular (casi siempre son
+    errores de unidades). Los .json usan unidades SI: Pa, K, N.
+    """
+    p0, T0 = caso["camara"]["p0_Pa"], caso["camara"]["T0_K"]
+    g = caso["gas"]["gamma"]
+    errores = []
+    if not 1e4 <= p0 <= 1e8:
+        errores.append(f"p0 = {p0:g} Pa está fuera de rango (10 kPa a 100 MPa).")
+    if not 0 < T0 <= 5000:
+        errores.append(f"T0 = {T0:g} K está fuera de rango (0 a 5000 K).")
+    if not 1.0 < g <= 1.67:
+        errores.append(f"gamma = {g:g} está fuera de rango (1 a 1.67).")
+    if not 0 < caso["pa_Pa"] < p0:
+        errores.append("La presión ambiente debe ser positiva y menor que p0.")
+    if errores:
+        raise ValueError("Revisa el caso (¿unidades?):\n  " + "\n  ".join(errores))
 
 
 def leer_caso(ruta):
