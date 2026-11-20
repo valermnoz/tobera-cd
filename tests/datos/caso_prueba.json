@@ -1,0 +1,34 @@
+{
+  "nombre": "caso_prueba",
+  "descripcion": "Copia fija del caso preliminar para las pruebas (no editar)",
+  "gas": {
+    "gamma": 1.4,
+    "R": 287.0
+  },
+  "camara": {
+    "p0_Pa": 1000000.0,
+    "T0_K": 300.0
+  },
+  "ambiente": {
+    "altitud_m": 1820.0
+  },
+  "empuje_requerido_N": 100.0,
+  "geometria": {
+    "angulo_convergente_deg": 30.0,
+    "angulo_divergente_deg": 15.0,
+    "relacion_contraccion": 9.0,
+    "longitud_recta_entrada_mm": 10.0,
+    "radio_arco_entrada_rt": 2.0,
+    "radio_garganta_arriba_rt": 1.5,
+    "radio_garganta_abajo_rt": 1.5,
+    "espesor_pared_mm": 2.0,
+    "tipo_pared": "constante"
+  },
+  "presiones_exteriores_Pa": [
+    980000,
+    683000,
+    484000,
+    300000,
+    101325
+  ]
+}

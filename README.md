@@ -133,7 +133,12 @@ pytest
 ```
 
 Las pruebas comparan contra valores tabulados de flujo isentrópico y choque
-normal (gamma = 1.4) y contra el caso preliminar resuelto a mano.
+normal (gamma = 1.4) y contra el caso preliminar resuelto a mano; también
+cubren la geometría, las exportaciones, la lectura de CSV de SolidWorks, la
+comparación, los casos de la interfaz y que la interfaz cargue sin errores.
+
+Las pruebas usan su propia copia del caso en `tests/datos/caso_prueba.json`,
+así que editar o guardar casos desde la interfaz no las afecta.
 
 ## Estructura
 
