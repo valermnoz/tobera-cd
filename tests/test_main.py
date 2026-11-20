@@ -2,6 +2,7 @@
 Pruebas del flujo completo (main.py e interactivo.py) con el caso preliminar.
 """
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -9,7 +10,8 @@ import pytest
 import interactivo
 from main import completar_caso, correr, guardar, leer_caso, presiones_a_analizar
 
-CASO = "casos/caso_preliminar.json"
+# Copia fija del caso preliminar: la interfaz puede sobrescribir los de casos/
+CASO = Path(__file__).parent / "datos" / "caso_prueba.json"
 
 
 @pytest.fixture(scope="module")
