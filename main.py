@@ -2,22 +2,28 @@
 main.py — Corre un caso completo de TOBERA-CD.
 
 Uso:
-    python main.py casos/caso_preliminar.json
+    python main.py                              (modo interactivo: pregunta los datos)
+    python main.py casos/caso_preliminar.json   (lee un caso guardado)
 
-Lee el caso, dimensiona la tobera, genera su contorno, calcula las
-presiones críticas y analiza cada presión exterior. Escribe los
-resultados y los archivos para SolidWorks en salidas/<caso>/.
+Dimensiona la tobera, genera su contorno, calcula las presiones críticas y
+analiza cada presión exterior: régimen, posición del choque, empuje y la
+distribución de M, p y T a lo largo de la tobera. Escribe resultados,
+gráficas y archivos para SolidWorks en salidas/<caso>/.
 """
 
 import json
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from geometria import (
-    contorno, exportar_dimensiones, exportar_dxf, exportar_xyz, resumen_geometria,
+    GEOMETRIA_DEFECTO, area, contorno, exportar_dimensiones, exportar_dxf, exportar_xyz,
+    muestrear, resumen_geometria,
 )
+from graficas import graficar_contorno, graficar_mach, graficar_presiones
 from tobera import (
-    coeficiente_empuje, dimensionar, empuje, estado_salida,
+    coeficiente_empuje, dimensionar, distribucion, empuje, estado_salida,
     presion_atmosferica, presiones_criticas,
 )
 
@@ -31,13 +37,22 @@ NOMBRES_REGIMEN = {
     "subexpandida": "Subexpandida",
 }
 
+# ---------------------------------------------------------------------
+# Lectura del caso
+# ---------------------------------------------------------------------
+
+def completar_caso(caso):
+    """Agrega pa y los valores por defecto de la geometría que falten."""
+    amb = caso["ambiente"]
+    caso["pa_Pa"] = amb.get("pa_Pa") or presion_atmosferica(amb["altitud_m"])
+    caso["geometria"] = {**GEOMETRIA_DEFECTO, **caso.get("geometria", {})}
+    caso.setdefault("presiones_exteriores_Pa", "auto")
+    return caso
+
 
 def leer_caso(ruta):
     with open(ruta, encoding="utf-8") as f:
-        caso = json.load(f)
-    amb = caso["ambiente"]
-    caso["pa_Pa"] = amb.get("pa_Pa") or presion_atmosferica(amb["altitud_m"])
-    return caso
+        return completar_caso(json.load(f))
 
 
 def parametros_geometria(caso):
@@ -54,6 +69,28 @@ def parametros_geometria(caso):
     }
 
 
+def presiones_a_analizar(caso, crit, p0):
+    """
+    Presiones exteriores del caso. Con "auto" se elige una por régimen:
+    subsónico, choque interno, sobreexpandida y subexpandida.
+    La presión ambiente de diseño (tobera adaptada) siempre se incluye.
+    """
+    lista = caso["presiones_exteriores_Pa"]
+    if lista == "auto":
+        p1, p2, p3 = crit["p1"], crit["p2"], crit["p3"]
+        lista = [
+            min(1.02 * p1, 0.5 * (p1 + p0)),  # subsónico
+            0.5 * (p1 + p2),                   # choque interno
+            0.5 * (p2 + p3),                   # sobreexpandida
+            0.5 * p3,                          # subexpandida
+        ]
+    return sorted(set(lista) | {caso["pa_Pa"]}, reverse=True)
+
+
+# ---------------------------------------------------------------------
+# Cálculo
+# ---------------------------------------------------------------------
+
 def correr(caso):
     g, R = caso["gas"]["gamma"], caso["gas"]["R"]
     p0, T0 = caso["camara"]["p0_Pa"], caso["camara"]["T0_K"]
@@ -63,13 +100,17 @@ def correr(caso):
     crit = presiones_criticas(p0, diseno["Ae_At"], g)
     tramos = contorno(diseno["Dt"], diseno["De"], **parametros_geometria(caso))
 
-    # Siempre se analiza también la presión ambiente de diseño
-    presiones = sorted(set(caso["presiones_exteriores_Pa"]) | {pa}, reverse=True)
+    # Secciones de la tobera real (con la garganta redondeada)
+    x, r = muestrear(tramos)
+    A = area(r)
 
-    analisis = []
-    for pb in presiones:
+    analisis, distribuciones = [], []
+    for pb in presiones_a_analizar(caso, crit, p0):
         s = estado_salida(pb, p0, T0, diseno["At"], diseno["Ae_At"], g, R)
         Fb = empuje(s["m"], s["Ve"], s["pe"], pb, diseno["Ae"])
+        d = distribucion(x, A, pb, p0, T0, g)
+        d["pb"] = pb
+        distribuciones.append(d)
         analisis.append({
             "pb_Pa": pb,
             "regimen": s["regimen"],
@@ -80,18 +121,28 @@ def correr(caso):
             "F_N": Fb,
             "CF": coeficiente_empuje(Fb, p0, diseno["At"]),
             "choque": s["choque"],
+            "x_choque_mm": None if d["x_choque"] is None else d["x_choque"] * 1e3,
         })
+
     return {
         "diseno": diseno,
         "criticas": crit,
         "analisis": analisis,
-        "tramos": tramos,
         "geometria": resumen_geometria(tramos),
+        # Lo siguiente no se guarda en el JSON (son arreglos o geometría)
+        "tramos": tramos,
+        "x": x,
+        "r": r,
+        "distribuciones": distribuciones,
     }
 
 
+# ---------------------------------------------------------------------
+# Salidas
+# ---------------------------------------------------------------------
+
 def resumen(caso, res):
-    d, c = res["diseno"], res["criticas"]
+    d, c, geo = res["diseno"], res["criticas"], res["geometria"]
     lineas = [
         f"TOBERA-CD · {caso['nombre']}",
         f"{caso.get('descripcion', '')}",
@@ -107,10 +158,10 @@ def resumen(caso, res):
         f"  Coeficiente de empuje CF {d['CF']:9.3f}",
         "",
         "GEOMETRÍA (garganta en x = 0)",
-        f"  Diámetro de entrada      {2*res['geometria']['r_entrada']*1e3:9.2f} mm",
-        f"  Longitud entrada-garganta {res['geometria']['L_aguas_arriba']*1e3:8.2f} mm",
-        f"  Longitud del divergente  {res['geometria']['L_divergente']*1e3:9.2f} mm",
-        f"  Longitud total           {res['geometria']['L_total']*1e3:9.2f} mm",
+        f"  Diámetro de entrada      {2*geo['r_entrada']*1e3:9.2f} mm",
+        f"  Longitud entrada-garganta {geo['L_aguas_arriba']*1e3:8.2f} mm",
+        f"  Longitud del divergente  {geo['L_divergente']*1e3:9.2f} mm",
+        f"  Longitud total           {geo['L_total']*1e3:9.2f} mm",
         "",
         "PRESIONES CRÍTICAS",
         f"  p1 (subsónica, M=1 en garganta)  {c['p1']/1e3:8.1f} kPa",
@@ -128,35 +179,66 @@ def resumen(caso, res):
         if a["choque"]:
             ch = a["choque"]
             lineas.append(
-                f"  {'':9} choque en A/A* = {ch['As_At']:.3f}: M1 = {ch['M1']:.3f} -> "
-                f"M2 = {ch['M2']:.3f}, p02/p01 = {ch['p02_p01']:.3f}"
+                f"  {'':9} choque en x = {a['x_choque_mm']:.2f} mm (A/A* = {ch['As_At']:.3f}): "
+                f"M1 = {ch['M1']:.3f} -> M2 = {ch['M2']:.3f}, p02/p01 = {ch['p02_p01']:.3f}"
             )
     return "\n".join(lineas)
 
 
-def main():
-    ruta = sys.argv[1] if len(sys.argv) > 1 else "casos/caso_preliminar.json"
-    caso = leer_caso(ruta)
-    res = correr(caso)
-    texto = resumen(caso, res)
-    print(texto)
+def guardar_distribucion_csv(res, ruta):
+    """
+    Tabla sección por sección: x, r, A/A* y, para cada presión exterior,
+    M, p [kPa] y T [K]. Se abre directo en Excel para comparar con SolidWorks.
+    """
+    x, r = res["x"], res["r"]
+    A_At = (r / r.min()) ** 2
+    columnas, nombres = [x * 1e3, r * 1e3, A_At], ["x_mm", "r_mm", "A_sobre_At"]
+    for d in res["distribuciones"]:
+        etiqueta = f"{d['pb']/1e3:.1f}kPa"
+        columnas += [d["M"], d["p"] / 1e3, d["T"]]
+        nombres += [f"M_{etiqueta}", f"p_kPa_{etiqueta}", f"T_K_{etiqueta}"]
+    np.savetxt(ruta, np.column_stack(columnas), fmt="%.5f", delimiter=",",
+               header=",".join(nombres), comments="")
 
-    salida = Path("salidas") / caso["nombre"]
+
+def guardar(caso, res, salida):
     salida.mkdir(parents=True, exist_ok=True)
-    (salida / "resumen.txt").write_text(texto, encoding="utf-8")
+    (salida / "resumen.txt").write_text(resumen(caso, res), encoding="utf-8")
     with open(salida / "resultados.json", "w", encoding="utf-8") as f:
-        datos = {k: v for k, v in res.items() if k != "tramos"}
-        json.dump(datos, f, indent=2, ensure_ascii=False)
+        claves = ("diseno", "criticas", "analisis", "geometria")
+        json.dump({k: res[k] for k in claves}, f, indent=2, ensure_ascii=False)
+    guardar_distribucion_csv(res, salida / "distribucion.csv")
 
     # Archivos para SolidWorks
-    d = res["diseno"]
-    pg = parametros_geometria(caso)
-    espesor = caso["geometria"]["espesor_pared_mm"] / 1e3
-    exportar_xyz(res["tramos"], salida / "contorno_xyz.txt")
-    exportar_dxf(res["tramos"], salida / "contorno.dxf", espesor)
+    d, tramos = res["diseno"], res["tramos"]
+    geo_caso = caso["geometria"]
+    espesor = geo_caso["espesor_pared_mm"] / 1e3
+    pared = geo_caso["tipo_pared"]
+    exportar_xyz(tramos, salida / "contorno_xyz.txt")
+    exportar_dxf(tramos, salida / "contorno.dxf", espesor, pared)
     exportar_dimensiones(d["Dt"], d["De"], res["geometria"], salida / "dimensiones.txt",
-                         espesor=espesor, **pg)
+                         espesor=espesor, **parametros_geometria(caso))
 
+    # Gráficas
+    p0 = caso["camara"]["p0_Pa"]
+    graficar_contorno(tramos, d, res["geometria"], espesor, pared, salida / "contorno.png")
+    graficar_presiones(tramos, espesor, pared, res["x"], res["distribuciones"], p0,
+                       salida / "presiones.png")
+    graficar_mach(tramos, espesor, pared, res["x"], res["distribuciones"], salida / "mach.png")
+
+
+def main():
+    if len(sys.argv) > 1:
+        caso = leer_caso(sys.argv[1])
+    else:
+        from interactivo import preguntar_caso
+        caso = completar_caso(preguntar_caso())
+
+    res = correr(caso)
+    print(resumen(caso, res))
+
+    salida = Path("salidas") / caso["nombre"]
+    guardar(caso, res, salida)
     print(f"\nResultados guardados en {salida.resolve()}")
 
 

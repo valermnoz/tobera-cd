@@ -241,54 +241,85 @@ def coeficiente_empuje(F, p0, At):
 # 7. Distribución a lo largo de la tobera
 # ---------------------------------------------------------------------
 
+def _mach_rama(A_sobre_Aest, rama, g):
+    """Mach en cada sección para una rama ("sub" o "sup") de A/A*."""
+    return np.array([mach_desde_area(a, rama, g) for a in A_sobre_Aest])
+
+
+def _perfil_sin_choque(A, i_g, reg, pb, p0, g):
+    """
+    Mach en cada sección cuando no hay choque dentro de la tobera.
+
+      subsonico:              sin estrangular; el A* de referencia es
+                              "virtual" (menor que la garganta), porque el
+                              flujo nunca llega a M = 1.
+      estrangulado_subsonico: M = 1 en la garganta y subsónico después.
+      resto (supersónicos):   subsónico antes de la garganta y supersónico
+                              después; lo que pase fuera no afecta el interior.
+    """
+    At = A[i_g]
+    if reg == "subsonico":
+        Me = mach_desde_presion(pb / p0, g)
+        A_virtual = A[-1] / area_mach(Me, g)
+        return _mach_rama(A / A_virtual, "sub", g)
+    if reg == "estrangulado_subsonico":
+        return _mach_rama(A / At, "sub", g)
+    M = np.empty_like(A)
+    M[: i_g + 1] = _mach_rama(A[: i_g + 1] / At, "sub", g)
+    M[i_g + 1 :] = _mach_rama(A[i_g + 1 :] / At, "sup", g)
+    return M
+
+
+def _perfil_con_choque(x, A, i_g, pb, p0, g):
+    """
+    Mach y presión de estancamiento en cada sección con choque normal
+    interno (p2 < pb < p1). Devuelve (M, p0_local, x_choque).
+
+    Antes del choque: rama supersónica respecto a A*.
+    Después del choque: rama subsónica respecto a A*2 = A*/(p02/p01), y la
+    presión de estancamiento baja a p02.
+    """
+    At = A[i_g]
+    ch = posicion_choque(pb, p0, A[-1] / At, g)
+    As = ch["As_At"] * At
+    r0 = ch["p02_p01"]
+
+    # Primera sección del divergente cuya área supera a la del choque
+    j = np.arange(i_g + 1, len(A))
+    i_s = int(j[np.argmax(A[j] >= As)])
+    x_choque = float(np.interp(As, A[i_s - 1 : i_s + 1], x[i_s - 1 : i_s + 1]))
+
+    M = np.empty_like(A)
+    M[: i_g + 1] = _mach_rama(A[: i_g + 1] / At, "sub", g)
+    M[i_g + 1 : i_s] = _mach_rama(A[i_g + 1 : i_s] / At, "sup", g)
+    M[i_s:] = _mach_rama(A[i_s:] * r0 / At, "sub", g)
+
+    p0_local = np.full_like(A, p0)
+    p0_local[i_s:] = p0 * r0
+    return M, p0_local, x_choque
+
+
 def distribucion(x, A, pb, p0, T0, g=GAMMA_AIRE):
     """
     M(x), p(x) y T(x) a lo largo de la tobera para una presión exterior pb.
 
     x, A: arreglos de posición axial y área de cada sección (la garganta
           es el mínimo de A).
-    Devuelve un diccionario de arreglos: M, p, T y la posición del choque
-    x_choque (None si no hay choque interno).
+    Devuelve un diccionario con los arreglos M, p, T, el régimen y la
+    posición del choque x_choque (None si no hay choque interno).
     """
     x = np.asarray(x, dtype=float)
     A = np.asarray(A, dtype=float)
     i_g = int(np.argmin(A))
-    At = A[i_g]
-    Ae_At = A[-1] / At
-    crit = presiones_criticas(p0, Ae_At, g)
-    reg = regimen(pb, crit)
+    reg = regimen(pb, presiones_criticas(p0, A[-1] / A[i_g], g))
 
-    M = np.empty_like(A)
-    p0_local = np.full_like(A, p0)  # p0 cambia aguas abajo de un choque
-    x_choque = None
-
-    if reg == "subsonico":
-        # Sin estrangular: A* virtual menor que la garganta real
-        Me = mach_desde_presion(pb / p0, g)
-        A_virtual = A[-1] / area_mach(Me, g)
-        M[:] = [mach_desde_area(a / A_virtual, "sub", g) for a in A]
-    elif reg == "estrangulado_subsonico":
-        M[:] = [mach_desde_area(a / At, "sub", g) for a in A]
+    if reg == "choque_interno":
+        M, p0_local, x_choque = _perfil_con_choque(x, A, i_g, pb, p0, g)
     else:
-        M[: i_g + 1] = [mach_desde_area(a / At, "sub", g) for a in A[: i_g + 1]]
-        if reg == "choque_interno":
-            ch = posicion_choque(pb, p0, Ae_At, g)
-            As = ch["As_At"] * At
-            r0 = ch["p02_p01"]
-            # Primera sección del divergente cuya área supera la del choque
-            j_div = np.arange(i_g + 1, len(A))
-            i_s = int(j_div[np.argmax(A[j_div] >= As)])
-            # Interpolación lineal para la posición del choque
-            x_choque = float(np.interp(As, A[i_s - 1 : i_s + 1], x[i_s - 1 : i_s + 1]))
-            for k in range(i_g + 1, len(A)):
-                if k < i_s:
-                    M[k] = mach_desde_area(A[k] / At, "sup", g)
-                else:
-                    M[k] = mach_desde_area(A[k] * r0 / At, "sub", g)
-                    p0_local[k] = p0 * r0
-        else:
-            M[i_g + 1 :] = [mach_desde_area(a / At, "sup", g) for a in A[i_g + 1 :]]
+        M = _perfil_sin_choque(A, i_g, reg, pb, p0, g)
+        p0_local, x_choque = np.full_like(A, p0), None
 
+    # T0 se conserva incluso a través del choque (flujo adiabático)
     p = p0_local * np.array([p_p0(m, g) for m in M])
     T = T0 * np.array([T_T0(m, g) for m in M])
     return {"M": M, "p": p, "T": T, "x_choque": x_choque, "regimen": reg}
