@@ -42,6 +42,61 @@ def _potencia_diez(valor):
 
 
 # ---------------------------------------------------------------------
+# Ecuaciones del modelo
+# ---------------------------------------------------------------------
+
+# (grupo, [(descripción, LaTeX)]) — las mismas relaciones que usan flujo.py,
+# tobera.py y analisis_dimensional.py
+ECUACIONES = (
+    ("Flujo isentrópico", (
+        ("Temperatura de estancamiento", r"\frac{T_0}{T} = 1 + \frac{\gamma - 1}{2} M^2"),
+        ("Presión de estancamiento",
+         r"\frac{p_0}{p} = \left(\frac{T_0}{T}\right)^{\frac{\gamma}{\gamma - 1}}"),
+        ("Densidad de estancamiento",
+         r"\frac{\rho_0}{\rho} = \left(\frac{T_0}{T}\right)^{\frac{1}{\gamma - 1}}"),
+        ("Velocidad del sonido", r"a = \sqrt{\gamma R T}"),
+        ("Relación área–Mach",
+         r"\frac{A}{A^*} = \frac{1}{M}\left[\frac{2}{\gamma + 1}\left(1 + \frac{\gamma - 1}{2}"
+         r"M^2\right)\right]^{\frac{\gamma + 1}{2(\gamma - 1)}}"),
+        ("Gasto estrangulado",
+         r"\dot m = \frac{p_0 A^*}{\sqrt{T_0}}\sqrt{\frac{\gamma}{R}}\left(\frac{2}{\gamma + 1}"
+         r"\right)^{\frac{\gamma + 1}{2(\gamma - 1)}}"),
+    )),
+    ("Choque normal", (
+        ("Mach aguas abajo",
+         r"M_2^2 = \frac{1 + \frac{\gamma - 1}{2} M_1^2}{\gamma M_1^2 - \frac{\gamma - 1}{2}}"),
+        ("Salto de presión", r"\frac{p_2}{p_1} = 1 + \frac{2\gamma}{\gamma + 1}\left(M_1^2 - 1\right)"),
+        ("Pérdida de presión total",
+         r"\frac{p_{02}}{p_{01}} = \left[\frac{(\gamma + 1) M_1^2}{(\gamma - 1) M_1^2 + 2}"
+         r"\right]^{\frac{\gamma}{\gamma - 1}}\left[\frac{\gamma + 1}{2\gamma M_1^2 - (\gamma - 1)}"
+         r"\right]^{\frac{1}{\gamma - 1}}"),
+        ("Posición del choque", r"p_{01} A_1^* = p_{02} A_2^*"),
+    )),
+    ("Empuje y semejanza", (
+        ("Empuje (volumen de control)", r"F = \dot m V_e + \left(p_e - p_b\right) A_e"),
+        ("Coeficiente de empuje",
+         r"C_F = \frac{F}{p_0 A^*} = f\left(\gamma,\ \frac{A_e}{A^*},\ \frac{p_b}{p_0}\right)"),
+        ("Factor de divergencia cónica", r"\lambda = \frac{1 + \cos\alpha_d}{2}"),
+        ("Reynolds en la garganta", r"Re^* = \frac{\rho^* V^* D^*}{\mu^*}"),
+        ("Viscosidad (Sutherland)",
+         r"\mu = \mu_{ref}\left(\frac{T}{T_{ref}}\right)^{3/2}\frac{T_{ref} + S}{T + S}"),
+        ("Atmósfera estándar (z < 11 km)",
+         r"p_a = 101\,325\left(1 - 2.25577\times10^{-5}\,z\right)^{5.25588}"),
+    )),
+)
+
+
+def mostrar_ecuaciones():
+    """Las ecuaciones del modelo en tres columnas, una por grupo."""
+    for col, (grupo, ecuaciones) in zip(st.columns(len(ECUACIONES)), ECUACIONES):
+        with col:
+            st.markdown(f'<div class="grupo">{grupo}</div>', unsafe_allow_html=True)
+            for descripcion, latex in ecuaciones:
+                st.caption(descripcion)
+                st.latex(latex)
+
+
+# ---------------------------------------------------------------------
 # Explorador de choque
 # ---------------------------------------------------------------------
 
@@ -55,12 +110,12 @@ def pestana_explorador(resultado):
     A = area(res["r"])
 
     estilo.titulo_seccion("01", "Presión exterior en vivo",
-                          "Mueve p_b y la solución se recalcula al instante: régimen, "
+                          "Mueve $p_b$ y la solución se recalcula al instante: régimen, "
                           "posición del choque, empuje y campo de Mach.")
     minimo = round(0.3 * crit["p3"] / 1e3, 1)
     maximo = round(0.995 * p0 / 1e3, 1)
     inicial = min(max(round((crit["p1"] + crit["p2"]) / 2e3, 1), minimo), maximo)
-    pb = 1e3 * st.slider("Presión exterior p_b [kPa]", minimo, maximo, inicial, step=0.5,
+    pb = 1e3 * st.slider("Presión exterior $p_b$ [kPa]", minimo, maximo, inicial, step=0.5,
                          key=f"explorador_pb_{resultado['id']}")
 
     s = estado_salida(pb, p0, T0, d["At"], d["Ae_At"], g, R)
@@ -75,25 +130,26 @@ def pestana_explorador(resultado):
     st.markdown(estilo.insignia(reg, NOMBRES_REGIMEN[reg].upper()), unsafe_allow_html=True)
     x_ch = "—" if perfil["x_choque"] is None else f"{perfil['x_choque']*1e3:.2f}"
     estilo.telemetria([
-        ("Mach de salida", f"{s['Me']:.3f}", ""),
-        ("Presión de salida", f"{s['pe']/1e3:.1f}", " kPa"),
-        ("Gasto másico", f"{s['m']:.4f}", " kg/s"),
-        ("Empuje ideal", f"{F:.2f}", " N"),
+        ("Mach de salida M<sub>e</sub>", f"{s['Me']:.3f}", ""),
+        ("Presión de salida p<sub>e</sub>", f"{s['pe']/1e3:.1f}", " kPa"),
+        ("Gasto másico ṁ", f"{s['m']:.4f}", " kg/s"),
+        ("Empuje ideal F", f"{F:.2f}", " N"),
         ("Empuje con λ", f"{lam * s['m'] * s['Ve'] + (s['pe'] - pb) * d['Ae']:.2f}", " N"),
-        ("C_F", f"{coeficiente_empuje(F, p0, d['At']):.4f}", ""),
-        ("Choque", x_ch, " mm" if perfil["x_choque"] is not None else ""),
+        ("C<sub>F</sub>", f"{coeficiente_empuje(F, p0, d['At']):.4f}", ""),
+        ("Choque x<sub>s</sub>", x_ch, " mm" if perfil["x_choque"] is not None else ""),
     ])
-    st.caption(f"Empuje con λ: corrige el término de cantidad de movimiento por la divergencia "
-               f"cónica, λ = (1 + cos {caso['geometria']['angulo_divergente_deg']:g}°)/2 = "
-               f"{lam:.4f}.")
+    alfa_g = caso["geometria"]["angulo_divergente_deg"]
+    st.caption("Empuje con λ: corrige el término de cantidad de movimiento por la divergencia "
+               rf"cónica, $F = \lambda\,\dot m V_e + (p_e - p_b)A_e$ con "
+               rf"$\lambda = \frac{{1 + \cos {alfa_g:g}^\circ}}{{2}} = {lam:.4f}$.")
     if reg in ("sobreexpandida", "choque_en_salida") and s["pe"] < 0.4 * pb:
-        st.warning(f"pₑ/p_b = {s['pe']/pb:.2f} < 0.4: según el criterio de Summerfield es "
+        st.warning(f"$p_e/p_b = {s['pe']/pb:.2f} < 0.4$: según el criterio de Summerfield es "
                    "probable que la capa límite se desprenda dentro de la divergente. El CFD "
                    "mostraría separación y un choque oblicuo en lugar de un chorro limpio.")
     if reg == "choque_interno" and s["choque"] is not None:
         ch = s["choque"]
-        st.caption(f"Choque normal: M₁ = {ch['M1']:.3f} → M₂ = {ch['M2']:.3f}, "
-                   f"p₀₂/p₀₁ = {ch['p02_p01']:.4f} (pérdida de presión total "
+        st.caption(rf"Choque normal: $M_1 = {ch['M1']:.3f} \rightarrow M_2 = {ch['M2']:.3f}$, "
+                   rf"$p_{{02}}/p_{{01}} = {ch['p02_p01']:.4f}$ (pérdida de presión total "
                    f"{100 * (1 - ch['p02_p01']):.1f} %).")
 
     c1, c2 = st.columns(2)
@@ -103,8 +159,8 @@ def pestana_explorador(resultado):
     _grafica(fig_p, c2, key="expl_p")
 
     estilo.titulo_seccion("02", "Animación del choque",
-                          "Al bajar p_b desde p₁ el choque nace en la garganta, recorre la "
-                          "divergente y sale por el plano de salida (p₂). Pulsa ▶.")
+                          "Al bajar $p_b$ desde $p_1$ el choque nace en la garganta, recorre "
+                          "la divergente y sale por el plano de salida ($p_b = p_2$). Pulsa ▶.")
     _grafica(_animacion(resultado["id"], res, p0, T0, g), key="expl_anim")
 
 
@@ -153,27 +209,31 @@ def pestana_dimensional(resultado):
                  r"\frac{p_b}{p_0}\right)")
     estilo.telemetria([
         ("γ", f"{g:.3f}", ""),
-        ("Aₑ/A*", f"{d['Ae_At']:.4f}", ""),
-        ("pₐ/p₀ de diseño", f"{pa_p0:.4f}", ""),
-        ("C_F de diseño", f"{d['CF']:.4f}", ""),
-        ("Re* en la garganta", _potencia_diez(re["Re"]), ""),
+        ("A<sub>e</sub>/A<sup>*</sup>", f"{d['Ae_At']:.4f}", ""),
+        ("p<sub>a</sub>/p<sub>0</sub> de diseño", f"{pa_p0:.4f}", ""),
+        ("C<sub>F</sub> de diseño", f"{d['CF']:.4f}", ""),
+        ("Re<sup>*</sup> en la garganta", _potencia_diez(re["Re"]), ""),
     ])
     regimen_capa = "turbulenta" if re["Re"] > 5e5 else "laminar o de transición"
-    st.caption(f"Re* = ρ*V*D*/μ* con ρ* = {re['rho']:.3f} kg/m³, V* = {re['V']:.1f} m/s y "
-               f"μ* = {re['mu']:.3e} Pa·s (Sutherland, aire). Capa límite {regimen_capa}: la "
+    st.caption(rf"$Re^* = \dfrac{{\rho^* V^* D^*}}{{\mu^*}}$ con "
+               rf"$\rho^* = {re['rho']:.3f}$ kg/m³, $V^* = {re['V']:.1f}$ m/s y "
+               rf"$\mu^* = {re['mu']*1e5:.4f}\times10^{{-5}}$ Pa·s (Sutherland, aire). "
+               f"Capa límite {regimen_capa}: la "
                "viscosidad solo actúa en una capa delgada, por eso el modelo ideal funciona y "
                "el coeficiente de descarga real queda cerca de 0.98–0.99.")
 
-    estilo.titulo_seccion("02", "C_F contra presión exterior para varias Aₑ/A*",
-                          "Curvas universales para γ fijo: sirven para cualquier tamaño, "
+    estilo.titulo_seccion("02", "C<sub>F</sub> contra presión exterior para varias "
+                                "A<sub>e</sub>/A<sup>*</sup>",
+                          "Curvas universales para $\\gamma$ fijo: sirven para cualquier tamaño, "
                           "temperatura o presión de cámara.")
     _grafica(figura_cf(_curvas_area(d["Ae_At"], g), f"C_F = f(Aₑ/A*, p_b/p₀)  ·  γ = {g:.3f}",
                        lambda ar: f"Aₑ/A* = {ar:g}", resaltar=round(d["Ae_At"], 4),
                        pb_p0_diseno=pa_p0), key="dim_area")
 
     estilo.titulo_seccion("03", "Prueba de semejanza",
-                          "Cinco toberas con los mismos grupos Π (γ, Aₑ/A*, p_b/p₀) pero "
-                          "distinto tamaño, T₀ y p₀: el empuje cambia, C_F no.")
+                          r"Cinco toberas con los mismos grupos $\Pi$ "
+                          r"$\left(\gamma,\ A_e/A^*,\ p_b/p_0\right)$ pero distinto tamaño, "
+                          r"$T_0$ y $p_0$: el empuje cambia, $C_F$ no.")
     filas = ad.prueba_semejanza(d["Ae_At"], pa_p0, g, R)
     tabla = pd.DataFrame([{
         "Tobera": f["nombre"], "p₀ [MPa]": f"{f['p0_Pa']/1e6:.2f}", "T₀ [K]": f"{f['T0_K']:.0f}",
@@ -182,20 +242,22 @@ def pestana_dimensional(resultado):
     } for f in filas])
     _tabla(tabla, derecha=list(tabla.columns[1:]))
     dispersion = max(f["CF"] for f in filas) - min(f["CF"] for f in filas)
-    st.caption(f"Diferencia máxima de C_F entre las cinco toberas: {dispersion:.1e} (error "
+    st.caption(f"Diferencia máxima de $C_F$ entre las cinco toberas: {dispersion:.1e} (error "
                "numérico). Por eso se puede validar con aire frío en un modelo a escala.")
 
     estilo.titulo_seccion("04", "Efecto de γ: semejanza incompleta",
-                          "El aire (γ = 1.4) y los gases de combustión (γ ≈ 1.2) no comparten "
-                          "el grupo γ, así que sus C_F no coinciden.")
+                          r"El aire ($\gamma = 1.4$) y los gases de combustión "
+                          r"($\gamma \approx 1.2$) no comparten el grupo $\gamma$, así que sus "
+                          r"$C_F$ no coinciden.")
     curvas_g = _curvas_gamma(d["Ae_At"], g)
     _grafica(figura_cf(curvas_g, f"C_F para Aₑ/A* = {d['Ae_At']:.3f} y distintos γ",
                        lambda gg: f"γ = {gg:g}", resaltar=round(g, 4), pb_p0_diseno=pa_p0),
              key="dim_gamma")
     cf_14 = ad.cf_adimensional(d["Ae_At"], pa_p0, 1.4)[0]
     cf_12 = ad.cf_adimensional(d["Ae_At"], pa_p0, 1.2)[0]
-    st.caption(f"Con la misma tobera y p_b/p₀ = {pa_p0:.4f}: C_F = {cf_14:.4f} con γ = 1.4 y "
-               f"{cf_12:.4f} con γ = 1.2 ({100 * (cf_12 - cf_14) / cf_14:+.1f} %). Una prueba "
+    st.caption(rf"Con la misma tobera y $p_b/p_0 = {pa_p0:.4f}$: $C_F = {cf_14:.4f}$ con "
+               rf"$\gamma = 1.4$ y $C_F = {cf_12:.4f}$ con $\gamma = 1.2$ "
+               f"({100 * (cf_12 - cf_14) / cf_14:+.1f} %). Una prueba "
                "con aire no reproduce exactamente el empuje del motor real.")
 
 
@@ -293,7 +355,7 @@ def pestana_comparar(resultado):
     ]), g2, key="comp_mach")
 
     estilo.titulo_seccion("04", "Coeficiente de empuje",
-                          "C_F contra p_b/p₀ de cada tobera: compara su desempeño fuera de "
+                          "$C_F$ contra $p_b/p_0$ de cada tobera: compara su desempeño fuera de "
                           "diseño sin importar el tamaño.")
     curvas = {}
     for etiqueta, caso, d in ((f"A · {na}", caso_a, da), (f"B · {nb}", caso_b, db)):

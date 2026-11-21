@@ -10,6 +10,10 @@ comparacion.py — Validación contra SolidWorks Flow Simulation.
                           (garganta en x = 0, en mm)
   comparar():             interpola SolidWorks en los nodos del modelo y
                           calcula la diferencia y el error porcentual
+  veredicto():            "excelente", "buena", ... según el error medio
+  errores_globales():     error % de ṁ, Me, pe y F contra los goals de SW
+  datos_ejemplo():        CSV sintético con formato de Flow Simulation para
+                          probar la pestaña (NO son datos reales)
 
 Convención: diferencia = código − SolidWorks y
 error % = (código − SolidWorks) / |SolidWorks| · 100, con SolidWorks como
@@ -275,3 +279,68 @@ def tabla_comparacion(comparaciones):
             f"{nombre}_error_pct": c["error_pct"],
         }).set_index("x_mm"))
     return pd.concat(tablas, axis=1).sort_index().reset_index()
+
+
+# ---------------------------------------------------------------------
+# Lectura rápida de la concordancia
+# ---------------------------------------------------------------------
+
+# Umbrales del error medio (|error| promedio a lo largo de la tobera)
+VEREDICTOS = (
+    (2.0, "excelente", "Concordancia excelente"),
+    (5.0, "buena", "Concordancia buena"),
+    (10.0, "aceptable", "Concordancia aceptable"),
+    (float("inf"), "revisar", "Diferencia grande: revisar malla, condiciones o alineación"),
+)
+
+
+def veredicto(error_medio_pct):
+    """(clave, texto) según el error medio en %."""
+    for limite, clave, texto in VEREDICTOS:
+        if error_medio_pct <= limite:
+            return clave, texto
+
+
+def errores_globales(modelo, solidworks):
+    """
+    Error relativo (código − SW)/|SW| en % de cada magnitud global que se
+    capturó de Flow Simulation. Las que valen 0 o None se omiten.
+    """
+    filas = []
+    for nombre, valor_sw in solidworks.items():
+        if valor_sw:
+            filas.append((nombre, 100.0 * (modelo[nombre] - valor_sw) / abs(valor_sw)))
+    return filas
+
+
+# ---------------------------------------------------------------------
+# Datos de ejemplo (sintéticos)
+# ---------------------------------------------------------------------
+
+def datos_ejemplo(x_mm, p_Pa, M, semilla=7, n=140):
+    """
+    CSV con el mismo formato que exporta Flow Simulation, fabricado a partir
+    del modelo 1D para poder probar la pestaña antes de tener el CFD real.
+    NO son resultados de SolidWorks: imita a propósito lo que suele hacer un
+    CFD (choque repartido en varias celdas, Mach un poco menor por la capa
+    límite y algo de ruido numérico).
+    """
+    rng = np.random.default_rng(semilla)
+    x_mm, p_Pa, M = (np.asarray(v, dtype=float) for v in (x_mm, p_Pa, M))
+    xs = np.linspace(x_mm[0], x_mm[-1], n)
+    p, m = np.interp(xs, x_mm, p_Pa), np.interp(xs, x_mm, M)
+    # El choque se reparte en ~1 mm (suavizado gaussiano)
+    paso = xs[1] - xs[0]
+    k = np.exp(-0.5 * (np.arange(-12, 13) * paso / 0.45) ** 2)
+    k /= k.sum()
+    suave = lambda y: np.convolve(np.pad(y, 12, mode="edge"), k, mode="valid")  # noqa: E731
+    p, m = suave(p), suave(m)
+    divergente = xs > 0
+    m = m * np.where(divergente, 0.985, 1.0)        # capa límite: Mach algo menor
+    p = p * np.where(divergente, 1.03, 1.0)         # ...y presión algo mayor
+    p *= 1 + 0.004 * rng.standard_normal(n)
+    m *= 1 + 0.004 * rng.standard_normal(n)
+    lineas = ["Datos de EJEMPLO generados por TOBERA-CD (no son de SolidWorks)",
+              "X [m],Pressure [Pa],Mach Number [ ]"]
+    lineas += [f"{xi/1e3:.6f},{pi:.2f},{mi:.5f}" for xi, pi, mi in zip(xs, p, m)]
+    return ("\n".join(lineas) + "\n").encode("utf-8")

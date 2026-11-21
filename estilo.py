@@ -15,10 +15,15 @@ import streamlit as st
 
 from main import NOMBRES_REGIMEN
 
-from graficas_gui import (ACENTO, BORDE, COLOR_REGIMEN, EJES, FONDO, PANEL, PANEL_2, REJILLA,
+from graficas_gui import (ACENTO, ACENTO_CLARO, BORDE, COLOR_ERROR, COLOR_REGIMEN, EJES, FONDO, PANEL, PANEL_2, REJILLA,
                           TEXTO, TEXTO_2, TEXTO_3, rgba)
 
-MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace'
+# Colores del veredicto de la validación (clases .insignia.veredicto-*)
+COLOR_VEREDICTO = {"veredicto-excelente": COLOR_REGIMEN["adaptada"],
+                   "veredicto-buena": "#8AA2F2", "veredicto-aceptable": "#F2C94C",
+                   "veredicto-revisar": COLOR_ERROR}
+
+MONO = '"IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace'
 
 CSS = Template("""
 .stApp { background: $fondo; }
@@ -29,13 +34,13 @@ h1, h2, h3, h4 { color: $texto; font-weight: 600; letter-spacing: -0.01em; }
 h3 { font-size: 1.15rem; }
 hr { border-color: $borde !important; }
 [data-testid="stCaptionContainer"] { color: $texto2; }
-a { color: $acento; }
+a { color: $acentoclaro; }
 
 /* Encabezado compacto */
 .encabezado {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   flex-wrap: wrap; padding: 0.9rem 1.2rem; margin-bottom: 1rem;
-  background: linear-gradient(110deg, $acento10, transparent 55%), $panel;
+  background: $panel;
   border: 1px solid $borde; border-radius: 4px;
 }
 .encabezado .marca { display: flex; align-items: center; gap: 0.9rem; }
@@ -45,7 +50,7 @@ a { color: $acento; }
   background: $acento10; border: 1px solid $acento35;
 }
 .encabezado .titulo { font-size: 1.35rem; font-weight: 700; color: $texto; line-height: 1.15; }
-.encabezado .titulo span { color: $acento; }
+.encabezado .titulo span { color: $acentoclaro; }
 .encabezado .subtitulo { font-size: 0.85rem; color: $texto2; }
 .encabezado .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .chip {
@@ -59,23 +64,19 @@ a { color: $acento; }
   position: relative; overflow: hidden; border: 1px solid $borde; border-radius: 6px;
   padding: 4.2rem 3rem 3.6rem 3rem; margin-bottom: 1.2rem; min-height: 360px;
   background:
-    linear-gradient(90deg, $fondo 0%, $fondo 38%, rgba(9,9,11,0.55) 70%, rgba(9,9,11,0.2) 100%),
+    linear-gradient(90deg, $fondo 0%, $fondo 38%, rgba(12,14,19,0.6) 70%, rgba(12,14,19,0.25) 100%),
     var(--foto) right center / cover no-repeat, $fondo;
-}
-.hero::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(600px 260px at 12% 110%, $acento35, transparent 70%);
 }
 .hero > * { position: relative; z-index: 1; max-width: 640px; }
 .hero .antetitulo {
-  font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: $acento;
+  font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: $acentoclaro;
   font-weight: 600; margin-bottom: 0.9rem;
 }
 .hero .gran-titulo {
-  font-size: 3.6rem; font-weight: 800; letter-spacing: -0.04em; line-height: 0.95;
+  font-size: 3.2rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.05;
   color: $texto; margin-bottom: 1rem;
 }
-.hero .gran-titulo span { color: $acento; }
+.hero .gran-titulo span { color: $acentoclaro; }
 .hero .lema { font-size: 1.35rem; color: $texto; font-weight: 500; margin-bottom: 0.7rem; }
 .hero .texto { font-size: 0.98rem; color: $texto2; line-height: 1.6; }
 .hero .creditos-foto {
@@ -90,7 +91,7 @@ a { color: $acento; }
 .cifras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem; }
 .cifra { border: 1px solid $borde; border-radius: 4px; padding: 1rem 1.1rem; background: $panel; }
 .cifra .valor { font-family: $mono; font-size: 1.7rem; font-weight: 600; color: $texto; }
-.cifra .valor span { color: $acento; }
+.cifra .valor span { color: $acentoclaro; }
 .cifra .etiqueta { font-size: 0.82rem; color: $texto2; margin-top: 0.2rem; }
 
 .tarjetas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
@@ -98,8 +99,8 @@ a { color: $acento; }
   border: 1px solid $borde; border-radius: 4px; padding: 1.2rem 1.2rem 1.1rem 1.2rem;
   background: $panel; transition: border-color 0.15s, transform 0.15s;
 }
-.tarjeta:hover { border-color: $acento35; transform: translateY(-2px); }
-.tarjeta .num { font-family: $mono; font-size: 0.75rem; color: $acento; margin-bottom: 0.6rem; }
+.tarjeta:hover { border-color: $ejes; }
+.tarjeta .num { font-family: $mono; font-size: 0.75rem; color: $acentoclaro; margin-bottom: 0.6rem; }
 .tarjeta .nombre { font-size: 1.02rem; font-weight: 600; color: $texto; margin-bottom: 0.35rem; }
 .tarjeta .desc { font-size: 0.86rem; color: $texto2; line-height: 1.5; }
 
@@ -131,7 +132,7 @@ a { color: $acento; }
   background: $acento10; border: 1px solid $acento35;
 }
 .nav .titulo { font-size: 1.1rem; font-weight: 700; color: $texto; letter-spacing: 0.02em; }
-.nav .titulo span { color: $acento; }
+.nav .titulo span { color: $acentoclaro; }
 .nav-der { display: flex; gap: 1.4rem; flex-wrap: wrap; }
 .nav-der span {
   font-family: $mono; font-size: 0.72rem; color: $texto3; text-transform: uppercase;
@@ -147,22 +148,16 @@ a { color: $acento; }
 .estado { display: inline-flex; align-items: center; gap: 0.5rem; }
 .estado::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
-  box-shadow: 0 0 0 0 currentColor; animation: latido 2s infinite;
 }
 .estado.ok { color: #4ADE80; }
 .estado.espera { color: #FACC15; }
-@keyframes latido {
-  0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.25); }
-  70% { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
-  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
-}
 
 /* Títulos de sección numerados */
 .seccion {
   display: flex; align-items: baseline; gap: 0.8rem; margin: 2rem 0 0.35rem 0;
   padding-bottom: 0.5rem; border-bottom: 1px solid $borde;
 }
-.seccion-num { font-family: $mono; font-size: 0.78rem; color: $acento; font-weight: 600; }
+.seccion-num { font-family: $mono; font-size: 0.78rem; color: $acentoclaro; font-weight: 600; }
 .seccion-texto {
   font-size: 0.86rem; font-weight: 600; color: $texto; text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -186,6 +181,7 @@ a { color: $acento; }
 }
 .lectura-val { font-family: $mono; font-size: 1.25rem; font-weight: 600; color: $texto; }
 .lectura-val span { font-size: 0.75rem; color: $texto2; font-weight: 400; }
+.lectura-etq sub, .lectura-etq sup, .seccion-texto sub { font-size: 0.75em; text-transform: none; }
 
 /* Hoja de especificaciones */
 .especificaciones {
@@ -239,7 +235,7 @@ div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-w
 
 /* Bloques del formulario */
 .grupo {
-  font-size: 0.72rem; font-weight: 600; color: $acento; text-transform: uppercase;
+  font-size: 0.72rem; font-weight: 600; color: $acentoclaro; text-transform: uppercase;
   letter-spacing: 0.08em; margin: 0.2rem 0 0.4rem 0; padding-bottom: 0.3rem;
   border-bottom: 1px solid $borde;
 }
@@ -253,18 +249,18 @@ button[data-baseweb="tab"] {
 button[data-baseweb="tab"]:hover { background: $panel; }
 button[data-baseweb="tab"] p { color: $texto2; font-weight: 500; font-size: 0.92rem; }
 button[data-baseweb="tab"][aria-selected="true"] { background: $panel; }
-button[data-baseweb="tab"][aria-selected="true"] p { color: $acento; font-weight: 600; }
+button[data-baseweb="tab"][aria-selected="true"] p { color: $acentoclaro; font-weight: 600; }
 [data-baseweb="tab-highlight"] { background-color: $acento; height: 2px; }
 [data-baseweb="tab-border"] { background-color: transparent; }
 
 /* Botones */
-[data-testid="stBaseButton-secondary"] { border-radius: 6px; font-weight: 500; background: $panel; }
-[data-testid="stBaseButton-secondary"]:hover { border-color: $acento; color: $acento; }
+[data-testid="stBaseButton-secondary"] { border-radius: 4px; font-weight: 500; background: $panel; }
+[data-testid="stBaseButton-secondary"]:hover { border-color: $acentoclaro; color: $acentoclaro; }
 [data-testid="stBaseButton-primary"] {
-  border-radius: 6px; font-weight: 600; background: $acento; border-color: $acento; color: $fondo;
+  border-radius: 4px; font-weight: 600; background: $acento; border-color: $acento; color: #FFFFFF;
 }
-[data-testid="stBaseButton-primary"]:hover { color: $fondo; filter: brightness(1.1); }
-[data-testid="stBaseButton-primary"] p { color: $fondo; }
+[data-testid="stBaseButton-primary"]:hover { color: #FFFFFF; filter: brightness(1.12); }
+[data-testid="stBaseButton-primary"] p { color: #FFFFFF; }
 
 /* Desplegables, cargadores de archivos y avisos */
 [data-testid="stExpander"] details {
@@ -319,9 +315,9 @@ $insignias
 """).safe_substitute(
     fondo=FONDO, panel=PANEL, panel2=PANEL_2, borde=BORDE, rejilla=REJILLA, ejes=EJES,
     texto=TEXTO, texto2=TEXTO_2, texto3=TEXTO_3, acento=ACENTO, mono=MONO,
-    acento10=rgba(ACENTO, 0.10), acento35=rgba(ACENTO, 0.35),
+    acento10=rgba(ACENTO, 0.12), acento35=rgba(ACENTO, 0.45), acentoclaro=ACENTO_CLARO,
     insignias="\n".join(f".insignia.{reg} {{ color: {color}; }}"
-                        for reg, color in COLOR_REGIMEN.items()),
+                        for reg, color in {**COLOR_REGIMEN, **COLOR_VEREDICTO}.items()),
 )
 
 
@@ -338,11 +334,15 @@ def ocultar_barra_lateral():
 
 
 def titulo_seccion(numero, texto, nota=None):
-    """Encabezado de sección numerado, estilo hoja técnica: '01  ANÁLISIS ...'."""
-    nota_html = f'<div class="seccion-nota">{escape(nota)}</div>' if nota else ""
+    """
+    Encabezado de sección numerado, estilo hoja técnica: '01  ANÁLISIS ...'.
+    'texto' admite <sub>/<sup> (son textos fijos del programa). La nota se
+    escribe en Markdown, así que las fórmulas entre $...$ salen como ecuación.
+    """
     st.markdown(f'<div class="seccion"><span class="seccion-num">{escape(numero)}</span>'
-                f'<span class="seccion-texto">{escape(texto)}</span></div>{nota_html}',
-                unsafe_allow_html=True)
+                f'<span class="seccion-texto">{texto}</span></div>', unsafe_allow_html=True)
+    if nota:
+        st.caption(nota)
 
 
 def insignia(clave, texto):
@@ -351,8 +351,11 @@ def insignia(clave, texto):
 
 
 def telemetria(valores):
-    """Fila de lecturas tipo consola: [(etiqueta, valor, unidad)]."""
-    celdas = "".join(f'<div class="lectura"><div class="lectura-etq">{escape(e)}</div>'
+    """
+    Fila de lecturas tipo consola: [(etiqueta, valor, unidad)]. La etiqueta
+    admite <sub>/<sup> para los símbolos (C<sub>F</sub>, Re<sup>*</sup>).
+    """
+    celdas = "".join(f'<div class="lectura"><div class="lectura-etq">{e}</div>'
                      f'<div class="lectura-val">{v}<span>{escape(u)}</span></div></div>'
                      for e, v, u in valores)
     st.markdown(f'<div class="telemetria">{celdas}</div>', unsafe_allow_html=True)

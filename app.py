@@ -17,7 +17,7 @@ programa, que tiene seis pestañas:
 
 Esta capa solo maneja la interfaz. Los cálculos están en configuracion.py,
 main.py y los módulos de cálculo; el resumen se lee con resumen_txt.py, la
-comparación está en comparacion.py, las figuras en graficas_gui.py, el PDF en
+comparación con SolidWorks está en comparacion.py y validacion.py, las figuras en graficas_gui.py, el PDF en
 reporte_pdf.py y las pestañas de análisis en pestanas_analisis.py.
 """
 
@@ -29,13 +29,13 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-import comparacion as cmp
 import configuracion as cfg
 import estilo
 import pestanas_analisis as analisis
+import validacion
 from geometria import GEOMETRIA_DEFECTO
-from graficas_gui import (ACENTO, CONFIG, figura_campo, figura_distribucion, figura_error,
-                          figura_geometria, figura_mapa_regimenes, figura_superpuesta)
+from graficas_gui import (ACENTO, CONFIG, figura_campo, figura_distribucion, figura_geometria,
+                          figura_mapa_regimenes)
 from interactivo import DESCRIPCION_GEOMETRIA
 from main import NOMBRES_REGIMEN
 from reporte_pdf import generar_pdf
@@ -335,6 +335,9 @@ def pestana_resultados(resultado):
                  for v in datos[clave]]
         estilo.mostrar_tabla(pd.DataFrame(filas), derecha=["Valor"])
 
+    with st.expander("Ecuaciones del modelo"):
+        analisis.mostrar_ecuaciones()
+
     estilo.titulo_seccion("02", "Distribuciones a lo largo de la tobera")
     st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "p", res["criticas"]),
                     theme=None, config=CONFIG)
@@ -357,8 +360,8 @@ def pestana_resultados(resultado):
 
     estilo.titulo_seccion("04", "Mapa de regímenes",
                           "Empuje de esta tobera para cualquier presión exterior. Las bandas son "
-                          "los regímenes que separan p₁, p₂ y p₃; los puntos son las presiones "
-                          "analizadas.")
+                          "los regímenes que separan $p_1$, $p_2$ y $p_3$; los puntos son las "
+                          "presiones analizadas.")
     d = res["diseno"]
     curva = curva_empuje(caso["camara"]["p0_Pa"], caso["camara"]["T0_K"], d["At"], d["Ae_At"],
                          caso["gas"]["gamma"], caso["gas"]["R"])
@@ -371,129 +374,6 @@ def pestana_resultados(resultado):
     _boton_archivo(resultado, "distribucion.csv", "text/csv", "Descargar distribucion.csv", cols[1])
     _boton_archivo(resultado, "contorno.dxf", "application/dxf", "Descargar contorno.dxf", cols[2])
     _boton_archivo(resultado, "dimensiones.txt", "text/plain", "Descargar dimensiones.txt", cols[3])
-
-
-# ---------------------------------------------------------------------
-# Pestaña: validación con SolidWorks
-# ---------------------------------------------------------------------
-
-def _indice(opciones, valor):
-    return opciones.index(valor) if valor in opciones else 0
-
-
-def pestana_validacion(resultado):
-    if resultado is None:
-        st.info("Primero simula un caso en la pestaña Caso. La comparación usa sus resultados.")
-        return
-    caso, res = resultado["caso"], resultado["res"]
-    geo = res["geometria"]
-
-    st.markdown(
-        "1. Descarga el contorno y modélalo en SolidWorks (ver README).\n"
-        "2. Corre la simulación en Flow Simulation y exporta los resultados a lo largo "
-        "del eje de la tobera como .csv.\n"
-        "3. Sube el .csv aquí."
-    )
-    _boton_archivo(resultado, "contorno.dxf", "application/dxf", "Descargar contorno.dxf",
-                   prefijo="val")
-
-    archivo = st.file_uploader("Resultados de SolidWorks (.csv)", type=["csv", "txt"],
-                               key="subir_csv")
-    if archivo is None:
-        return
-    try:
-        tabla = cmp.leer_csv_solidworks(archivo.getvalue())
-    except ValueError as e:
-        st.error(f"No se pudo leer el CSV: {e}")
-        return
-
-    columnas = list(tabla.columns)
-    auto = cmp.detectar_columnas(columnas)
-    sufijo = f"{archivo.name}_{archivo.size}"  # reinicia los widgets con cada archivo
-    ninguna = "(ninguna)"
-    opciones_y = [ninguna] + columnas
-
-    analisis = res["analisis"]
-    etiquetas = [f"{a['pb_Pa']/1e3:.1f} kPa · {NOMBRES_REGIMEN[a['regimen']]}" for a in analisis]
-    i_diseno = next((i for i, a in enumerate(analisis) if a["pb_Pa"] == caso["pa_Pa"]), 0)
-
-    c = st.columns(4)
-    col_x = c[0].selectbox("Columna de posición", columnas,
-                           index=_indice(columnas, auto["x"]), key=f"cx_{sufijo}")
-    col_p = c[1].selectbox("Columna de presión estática", opciones_y,
-                           index=_indice(opciones_y, auto["p"] or ninguna), key=f"cp_{sufijo}")
-    col_M = c[2].selectbox("Columna de número de Mach", opciones_y,
-                           index=_indice(opciones_y, auto["M"] or ninguna), key=f"cM_{sufijo}")
-    i_pb = c[3].selectbox("Presión exterior simulada", list(range(len(etiquetas))),
-                          index=i_diseno, format_func=lambda i: etiquetas[i],
-                          key=f"pb_{sufijo}_{resultado['id']}")
-
-    with st.expander("Unidades y alineación"):
-        a = st.columns(5)
-        unidades_l, unidades_p = list(cmp.A_MM), list(cmp.A_PA)
-        u_x = a[0].selectbox("Unidad de posición", unidades_l, key=f"ux_{sufijo}_{col_x}",
-                             index=_indice(unidades_l,
-                                           cmp.unidad_en_nombre(col_x, unidades_l) or "m"))
-        u_p = a[1].selectbox("Unidad de presión", unidades_p, key=f"up_{sufijo}_{col_p}",
-                             index=_indice(unidades_p,
-                                           cmp.unidad_en_nombre(col_p, unidades_p) or "Pa"))
-        origen = a[2].selectbox("x = 0 del CSV está en", list(cmp.ORIGENES),
-                                format_func=cmp.ORIGENES.get, key="sw_origen")
-        desplazamiento = a[3].number_input("Desplazamiento [mm]", step=0.1, format="%.3f",
-                                           key="sw_desplazamiento")
-        invertir = a[4].checkbox("El flujo va en -x", key="sw_invertir")
-        st.caption(f"Tobera del modelo: de x = {geo['x_entrada']*1e3:.2f} mm (entrada) a "
-                   f"{geo['x_salida']*1e3:.2f} mm (salida).")
-
-    if col_p == ninguna and col_M == ninguna:
-        st.warning("Elige al menos la columna de presión o la de Mach.")
-        return
-
-    modo = st.radio("Error a graficar", ["porcentual", "absoluto"], horizontal=True,
-                    format_func=str.capitalize)
-    d = res["distribuciones"][i_pb]
-    x_modelo = res["x"] * 1e3
-    if d["x_choque"] is not None:
-        st.caption(f"Con esta presión hay un choque normal en x = {d['x_choque']*1e3:.2f} mm. "
-                   "El CFD lo reparte en varias celdas, así que el error local ahí es grande.")
-
-    variables = []
-    if col_p != ninguna:
-        variables.append(("Presión estática", "kPa", "p", col_p, cmp.A_PA[u_p] / 1e3, d["p"] / 1e3))
-    if col_M != ninguna:
-        variables.append(("Número de Mach", "–", "M", col_M, 1.0, d["M"]))
-
-    x_sw = cmp.alinear_x(tabla[col_x].to_numpy() * cmp.A_MM[u_x], geo, origen, invertir,
-                         desplazamiento)
-    comparaciones = {}
-    for nombre, unidad, clave, col, factor, y_modelo in variables:
-        st.subheader(nombre)
-        try:
-            comp = cmp.comparar(x_modelo, y_modelo, x_sw, tabla[col].to_numpy() * factor)
-        except ValueError as e:
-            st.error(str(e))
-            continue
-        comparaciones["p_kPa" if clave == "p" else "M"] = comp
-        m = comp["metricas"]
-        sufijo_u = "" if unidad == "–" else f" {unidad}"
-        k = st.columns(4)
-        k[0].metric("RMSE", f"{m['rmse']:.4g}{sufijo_u}")
-        k[1].metric("Error medio", f"{m['error_medio_pct']:.2f} %")
-        k[2].metric("Error máximo", f"{m['error_max_pct']:.2f} %",
-                    help=f"Diferencia máxima {m['dif_max']:+.4g}{sufijo_u} en x = "
-                         f"{m['x_dif_max_mm']:.2f} mm")
-        k[3].metric("Cobertura de la tobera", f"{m['cobertura_pct']:.0f} %")
-        g1, g2 = st.columns(2)
-        g1.plotly_chart(figura_superpuesta(x_modelo, y_modelo, comp, nombre, unidad),
-                        theme=None, config=CONFIG, key=f"sup_{clave}")
-        g2.plotly_chart(figura_error(comp, nombre, unidad, modo), theme=None, config=CONFIG,
-                        key=f"err_{clave}")
-
-    if comparaciones:
-        st.download_button("Descargar tabla de comparación (.csv)",
-                           cmp.tabla_comparacion(comparaciones).to_csv(index=False).encode("utf-8"),
-                           file_name=f"comparacion_solidworks_{caso['nombre']}.csv",
-                           mime="text/csv")
 
 
 # ---------------------------------------------------------------------
@@ -529,11 +409,12 @@ MODULOS = (
                        "listos para comparar con Flow Simulation."),
     ("Explorador de choque", "Presión exterior en vivo y animación del choque recorriendo "
                              "la tobera."),
-    ("Análisis dimensional", "Teorema Π: C_F = f(γ, Aₑ/A*, p_b/p₀), prueba de semejanza, "
-                             "Re* y efecto de γ."),
-    ("Mapa de empuje", "F y C_F para cualquier presión exterior, con los regímenes "
+    ("Análisis dimensional", "Teorema Π de Buckingham, curvas universales del coeficiente "
+                             "de empuje, prueba de semejanza, Reynolds y efecto de γ."),
+    ("Mapa de empuje", "Empuje y coeficiente de empuje para cualquier presión exterior, con los regímenes "
                        "sombreados."),
-    ("Comparación de casos", "Dos diseños lado a lado: hoja de datos, perfiles, Mach y C_F."),
+    ("Comparación de casos", "Dos diseños lado a lado: hoja de datos, perfiles, Mach y "
+                             "coeficiente de empuje."),
     ("Exportación CAD", "Contorno DXF, puntos XYZ y ecuaciones para SolidWorks."),
     ("Reporte técnico", "PDF con la hoja de datos y las figuras del caso en un clic."),
 )
@@ -572,9 +453,10 @@ def _caso_referencia():
     caso = completar_caso(leer_caso(ruta))
     d = correr(caso)["diseno"]
     re = reynolds_garganta(caso["camara"]["p0_Pa"], caso["camara"]["T0_K"], d["Dt"])["Re"]
-    return [("Mach de salida", f"{d['Me']:.3f}", ""), ("Aₑ/A*", f"{d['Ae_At']:.3f}", ""),
-            ("D*", f"{d['Dt']*1e3:.2f}", " mm"), ("Gasto", f"{d['m']:.4f}", " kg/s"),
-            ("C_F", f"{d['CF']:.4f}", ""), ("Re*", f"{re/1e6:.2f}", " × 10⁶")]
+    return [("Mach de salida", f"{d['Me']:.3f}", ""),
+            ("A<sub>e</sub>/A<sup>*</sup>", f"{d['Ae_At']:.3f}", ""),
+            ("D<sup>*</sup>", f"{d['Dt']*1e3:.2f}", " mm"), ("Gasto", f"{d['m']:.4f}", " kg/s"),
+            ("C<sub>F</sub>", f"{d['CF']:.4f}", ""), ("Re<sup>*</sup>", f"{re/1e6:.2f}", " × 10⁶")]
 
 
 def _entrar():
@@ -622,17 +504,7 @@ def pantalla_inicio():
                 "</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="seccion-inicio">Modelo físico</div>', unsafe_allow_html=True)
-    e1, e2, e3 = st.columns(3)
-    with e1:
-        st.latex(r"\frac{A}{A^*}=\frac{1}{M}\left[\frac{2}{\gamma+1}\left(1+"
-                 r"\frac{\gamma-1}{2}M^2\right)\right]^{\frac{\gamma+1}{2(\gamma-1)}}")
-        st.caption("Relación área–Mach (flujo isentrópico)")
-    with e2:
-        st.latex(r"M_2^2=\frac{1+\frac{\gamma-1}{2}M_1^2}{\gamma M_1^2-\frac{\gamma-1}{2}}")
-        st.caption("Choque normal")
-    with e3:
-        st.latex(r"F=\dot m\,V_e+(p_e-p_b)\,A_e")
-        st.caption("Empuje por volumen de control")
+    analisis.mostrar_ecuaciones()
 
     st.markdown('<div class="seccion-inicio">Especificaciones técnicas</div>'
                 '<div class="especificaciones">' +
@@ -743,7 +615,7 @@ def main():
     with pestanas[4]:
         analisis.pestana_comparar(resultado)
     with pestanas[5]:
-        pestana_validacion(resultado)
+        validacion.pestana_validacion(resultado)
 
 
 main()

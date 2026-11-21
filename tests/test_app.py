@@ -83,3 +83,21 @@ def test_comparar_un_caso_consigo_mismo(tmp_path):
     at.run()
     at.selectbox(key="comp_b").set_value("casos/caso_preliminar.json").run()
     assert not at.exception
+
+
+def test_validacion_con_datos_de_ejemplo(tmp_path):
+    import configuracion as cfg
+    from main import leer_caso
+
+    caso = leer_caso(Path(__file__).parent / "datos" / "caso_prueba.json")
+    resultado = cfg.ejecutar(caso, dir_salidas=tmp_path)
+    resultado["id"] = 1
+    at = abrir_programa()
+    at.session_state["resultado"] = resultado
+    at.run()
+    next(b for b in at.button if b.label == "Probar con datos de ejemplo").click().run()
+    assert not at.exception
+    assert any("Datos de ejemplo" in w.value for w in at.warning)
+    # Con un goal capturado aparece la comparación global
+    at.number_input(key="g_F_1").set_value(20.0).run()
+    assert not at.exception

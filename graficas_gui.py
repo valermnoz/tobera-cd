@@ -27,39 +27,43 @@ from geometria import contorno_exterior, muestrear
 from graficas import NOMBRES_REGIMEN, _series
 
 # ---------------------------------------------------------------------
-# Paleta de la interfaz (tema negro)
+# Paleta de la interfaz: grafito neutro con azul rey como único acento
 # ---------------------------------------------------------------------
 
-FONDO = "#09090B"        # fondo de la página
-PANEL = "#111113"        # tarjetas, gráficas y controles
-PANEL_2 = "#1A1A1E"      # encabezados de tabla, hover
-BORDE = "#27272A"        # bordes finos
-REJILLA = "#1E1E22"      # rejilla de las gráficas
-EJES = "#3F3F46"         # ejes
-TEXTO = "#F4F4F5"        # texto principal
-TEXTO_2 = "#A1A1AA"      # texto secundario y líneas de referencia
-TEXTO_3 = "#71717A"      # notas
-ACENTO = "#FF6A1F"       # naranja de escape: modelo 1D y elementos activos
-TEAL = "#2DD4BF"         # diferencia / error
-COLOR_SW = "#E4E4E7"     # datos de SolidWorks (blanco, línea discontinua)
-PARED = "#27272A"        # pared de la tobera
+FONDO = "#0C0E13"        # fondo de la página
+PANEL = "#13161D"        # tarjetas, gráficas y controles
+PANEL_2 = "#1B1F28"      # encabezados de tabla, hover
+BORDE = "#272C37"        # bordes finos
+REJILLA = "#1D212A"      # rejilla de las gráficas
+EJES = "#3B4251"         # ejes
+TEXTO = "#E6E8EC"        # texto principal
+TEXTO_2 = "#A2A8B4"      # texto secundario y líneas de referencia
+TEXTO_3 = "#6F7684"      # notas
+ACENTO = "#4169E1"       # azul rey: modelo 1D y elementos activos
+ACENTO_CLARO = "#8AA2F2" # azul rey aclarado para texto pequeño sobre fondo oscuro
+TEAL = "#2BB3A3"         # diferencia / error
+COLOR_SW = "#F2A93B"     # datos de SolidWorks (ámbar, contrasta con el azul)
+COLOR_ERROR = "#EF6461"  # zona de error entre las dos curvas
+PARED = "#272C37"        # pared de la tobera
 
-# Paleta categórica (orden fijo); la primera es el naranja del modelo.
-SERIES = [ACENTO, "#FACC15", TEAL, "#A78BFA", "#F472B6", "#A3E635", "#60A5FA", "#A1A1AA"]
+# Paleta categórica (orden fijo); la primera es el azul del modelo y el
+# ámbar se reserva para SolidWorks.
+SERIES = [ACENTO, "#2BB3A3", "#C084FC", "#F472B6", "#A3E635", "#94A3B8", "#E6E8EC", "#38BDF8"]
 
 # Un color por régimen (tabla de resultados y mapa de regímenes)
 COLOR_REGIMEN = {
-    "subsonico": "#A1A1AA",
-    "estrangulado_subsonico": "#D4D4D8",
+    "subsonico": "#A2A8B4",
+    "estrangulado_subsonico": "#D4D7DD",
     "choque_interno": "#F472B6",
     "choque_en_salida": "#E879F9",
-    "sobreexpandida": "#FACC15",
-    "adaptada": "#4ADE80",
+    "sobreexpandida": "#F2C94C",
+    "adaptada": "#4CC38A",
     "subexpandida": "#A78BFA",
 }
 
 COLOR_CODIGO = ACENTO
-FUENTE = dict(family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif", size=13, color=TEXTO)
+FUENTE = dict(family="'IBM Plex Sans', 'Segoe UI', Helvetica, Arial, sans-serif", size=13,
+              color=TEXTO)
 ETIQUETA_X = "x [mm]  (garganta en x = 0)"
 
 # Barra de herramientas de las gráficas: sin logo y exportación PNG en alta
@@ -71,15 +75,13 @@ CONFIG = {
 }
 
 
-# Mapa de color "Inferno" (negro -> naranja -> amarillo) para el campo de
-# Mach. Streamlit cambia el color #000004 de la escala original por otro, así
-# que el primer tono se sustituye por un negro equivalente.
-_TONOS = ["#05050A"] + sequential.Inferno[1:]
-INFERNO = [[i / (len(_TONOS) - 1), c] for i, c in enumerate(_TONOS)]
+# Mapa de color tipo arcoíris ("Turbo"), parecido al que usa SolidWorks Flow
+# Simulation en sus gráficas de corte: así las dos imágenes se comparan igual.
+MAPA_CFD = [[i / (len(sequential.Turbo) - 1), c] for i, c in enumerate(sequential.Turbo)]
 
 
 def rgba(color, alfa):
-    """'#FF6A1F', 0.2 -> 'rgba(255,106,31,0.2)' (para rellenos transparentes)."""
+    """'#4169E1', 0.2 -> 'rgba(65,105,225,0.2)' (para rellenos transparentes)."""
     r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
     return f"rgba({r},{g},{b},{alfa})"
 
@@ -239,7 +241,7 @@ def figura_distribucion(x, distribuciones, variable, criticas=None):
 
 def figura_campo(x, r, d, variable="M", p0=None):
     """
-    Media tobera coloreada con M(x) o p(x)/p0 (mapa de color "Inferno"),
+    Media tobera coloreada con M(x) o p(x)/p0 (mapa de color arcoíris tipo CFD),
     parecido al resultado de Flow Simulation. Como el modelo es cuasi-1D el
     color solo cambia con x: es la misma información que las curvas, pero
     sobre la geometría real. La línea blanca discontinua marca el choque.
@@ -254,7 +256,7 @@ def figura_campo(x, r, d, variable="M", p0=None):
     campo = np.where(np.abs(y_mm)[:, None] <= r_mm[None, :], z[None, :], np.nan)
 
     fig = go.Figure(go.Heatmap(
-        x=x_mm, y=y_mm, z=campo, colorscale=INFERNO, zmin=0, zmax=float(np.max(z)),
+        x=x_mm, y=y_mm, z=campo, colorscale=MAPA_CFD, zmin=0, zmax=float(np.max(z)),
         colorbar=dict(title=dict(text=barra, font=dict(color=TEXTO_2)), thickness=12,
                       outlinewidth=0, tickfont=dict(color=TEXTO_3, size=11)),
         hovertemplate=f"x = %{{x:.2f}} mm<br>{barra} = %{{z:.3f}}<extra></extra>"))
@@ -529,4 +531,170 @@ def figura_comparar_mach(casos):
     fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.04, xanchor="right", x=1))
     fig.update_xaxes(title_text="Posición adimensional x/L (0 = entrada, 1 = salida)")
     fig.update_yaxes(title_text="Número de Mach M [–]")
+    return fig
+
+
+# ---------------------------------------------------------------------
+# Validación visual (código contra SolidWorks)
+# ---------------------------------------------------------------------
+
+def figura_empalme(comp, nombre, unidad, n_cuadros=40):
+    """
+    Las dos curvas empalmadas con la zona entre ellas sombreada (ese hueco es
+    el error). Botón ▶: un cursor recorre la tobera y va marcando los dos
+    valores y el error en cada punto.
+    """
+    x, cod, sw, err = comp["x"], comp["codigo"], comp["solidworks"], comp["error_pct"]
+    fig = go.Figure()
+    # Relleno entre curvas: primero SolidWorks, luego el código con fill="tonexty"
+    fig.add_trace(go.Scatter(x=x, y=sw, mode="lines", line=dict(color=COLOR_SW, width=2.2,
+                                                                 dash="dash"),
+                             name="SolidWorks", hovertemplate="%{y:.4g}<extra>SolidWorks</extra>"))
+    fig.add_trace(go.Scatter(x=x, y=cod, mode="lines", line=dict(color=ACENTO, width=2.8),
+                             fill="tonexty", fillcolor=rgba(COLOR_ERROR, 0.22), name="Código 1D",
+                             hovertemplate="%{y:.4g}<extra>Código 1D</extra>"))
+    y_min, y_max = float(min(cod.min(), sw.min())), float(max(cod.max(), sw.max()))
+    margen = 0.08 * (y_max - y_min or 1.0)
+
+    def cursor(i):
+        texto = (f"x = {x[i]:.2f} mm<br>Código: {cod[i]:.4g}<br>SolidWorks: {sw[i]:.4g}"
+                 f"<br><b>Error: {err[i]:+.2f} %</b>")
+        return [
+            go.Scatter(x=[x[i], x[i]], y=[y_min - margen, y_max + margen], mode="lines",
+                       line=dict(color=TEXTO_2, width=1), hoverinfo="skip", showlegend=False),
+            go.Scatter(x=[x[i], x[i]], y=[cod[i], sw[i]], mode="markers+lines",
+                       marker=dict(size=9, color=[ACENTO, COLOR_SW], line=dict(color=FONDO, width=2)),
+                       line=dict(color=COLOR_ERROR, width=3), hoverinfo="skip",
+                       showlegend=False),
+        ], texto
+
+    indices = np.linspace(0, len(x) - 1, n_cuadros).astype(int)
+    trazas, texto = cursor(indices[0])
+    for t in trazas:
+        fig.add_trace(t)
+    nota = dict(xref="paper", yref="paper", x=0.01, y=0.97, xanchor="left", yanchor="top",
+                showarrow=False, align="left", bgcolor=PANEL_2, bordercolor=BORDE, borderpad=8,
+                font=dict(color=TEXTO, size=12, family="'IBM Plex Mono', monospace"))
+    fig.frames = [go.Frame(data=cursor(i)[0], traces=[2, 3], name=str(k),
+                           layout=dict(annotations=[dict(nota, text=cursor(i)[1])]))
+                  for k, i in enumerate(indices)]
+    fig.add_annotation(**nota, text=texto)
+    _estilo(fig, f"{nombre}: empalme código – SolidWorks", alto=460)
+    boton = dict(type="buttons", direction="left", x=0, y=-0.2, xanchor="left", yanchor="top",
+                 showactive=False, bgcolor=PANEL_2, bordercolor=BORDE, font=dict(color=TEXTO),
+                 buttons=[dict(label="▶  Recorrer la tobera", method="animate",
+                               args=[None, dict(frame=dict(duration=120, redraw=True),
+                                                transition=dict(duration=0), fromcurrent=True)]),
+                          dict(label="❚❚", method="animate",
+                               args=[[None], dict(frame=dict(duration=0), mode="immediate")])])
+    deslizador = dict(active=0, x=0.3, y=-0.14, len=0.7, xanchor="left", yanchor="top",
+                      bgcolor=PANEL_2, bordercolor=BORDE, activebgcolor=ACENTO, tickcolor=EJES,
+                      font=dict(color=TEXTO_3, size=9), currentvalue=dict(visible=False),
+                      steps=[dict(label=f"{x[i]:.0f}", method="animate",
+                                  args=[[str(k)], dict(frame=dict(duration=0, redraw=True),
+                                                       mode="immediate")])
+                             for k, i in enumerate(indices)])
+    fig.update_layout(updatemenus=[boton], sliders=[deslizador], hovermode="x unified",
+                      margin=dict(b=140, t=80),
+                      legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="right", x=1))
+    _linea_garganta(fig)
+    fig.update_xaxes(title_text=ETIQUETA_X)
+    fig.update_yaxes(title_text=f"{nombre} [{unidad}]", range=[y_min - margen, y_max + margen])
+    return fig
+
+
+def figura_mapa_error(x_modelo_mm, r_modelo_mm, comp, nombre):
+    """
+    La tobera pintada con |error| en cada sección: blanco donde coinciden,
+    rojo donde más se separan. Muestra de un vistazo DÓNDE está el error.
+    """
+    x = comp["x"]
+    r = np.interp(x, x_modelo_mm, r_modelo_mm)
+    err = np.abs(comp["error_pct"])
+    tope = max(5.0, float(np.nanpercentile(err, 98)))
+    y = np.linspace(-1.05 * r.max(), 1.05 * r.max(), 140)
+    campo = np.where(np.abs(y)[:, None] <= r[None, :], err[None, :], np.nan)
+    escala = [[0, "#1F2A44"], [0.15, ACENTO], [0.45, "#F2C94C"], [1, COLOR_ERROR]]
+    fig = go.Figure(go.Heatmap(
+        x=x, y=y, z=campo, colorscale=escala, zmin=0, zmax=tope,
+        colorbar=dict(title=dict(text="|error| %", font=dict(color=TEXTO_2)), thickness=12,
+                      outlinewidth=0, tickfont=dict(color=TEXTO_3, size=11)),
+        hovertemplate="x = %{x:.2f} mm<br>|error| = %{z:.2f} %<extra></extra>"))
+    for signo in (1, -1):
+        fig.add_trace(go.Scatter(x=x_modelo_mm, y=signo * r_modelo_mm, mode="lines",
+                                 hoverinfo="skip", showlegend=False,
+                                 line=dict(color=TEXTO_2, width=1.2)))
+    i = int(np.nanargmax(err))
+    fig.add_annotation(x=x[i], y=r[i], text=f"máx. {err[i]:.1f} %", showarrow=True,
+                       arrowcolor=TEXTO_2, ay=-28, font=dict(color=TEXTO, size=11))
+    _estilo(fig, f"{nombre}: dónde está el error", alto=340)
+    fig.update_layout(hovermode="closest")
+    fig.update_xaxes(title_text=ETIQUETA_X, showgrid=False, showspikes=False,
+                     range=[x_modelo_mm[0], x_modelo_mm[-1]], constrain="domain")
+    fig.update_yaxes(title_text="r [mm]", showgrid=False, showspikes=False, scaleanchor="x",
+                     scaleratio=1, range=[y[0], y[-1]], constrain="domain")
+    return fig
+
+
+def figura_paridad(comp, nombre, unidad, banda_pct=5.0):
+    """
+    Gráfica de paridad: SolidWorks en x, código en y. Si coincidieran, todos
+    los puntos caerían sobre la diagonal; la franja es ±banda_pct %.
+    """
+    sw, cod, x = comp["solidworks"], comp["codigo"], comp["x"]
+    lim = [float(min(sw.min(), cod.min())), float(max(sw.max(), cod.max()))]
+    linea = np.linspace(lim[0], lim[1], 50)
+    f = banda_pct / 100
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=np.concatenate([linea, linea[::-1]]),
+                             y=np.concatenate([linea * (1 + f), (linea * (1 - f))[::-1]]),
+                             fill="toself", fillcolor=rgba(ACENTO, 0.10), line=dict(width=0),
+                             hoverinfo="skip", name=f"±{banda_pct:g} %"))
+    fig.add_trace(go.Scatter(x=linea, y=linea, mode="lines", name="coincidencia perfecta",
+                             line=dict(color=TEXTO_2, width=1, dash="dash"), hoverinfo="skip"))
+    fig.add_trace(go.Scatter(
+        x=sw, y=cod, mode="markers", name="secciones",
+        marker=dict(size=6, color=x, colorscale=MAPA_CFD, showscale=True,
+                    colorbar=dict(title=dict(text="x [mm]", font=dict(color=TEXTO_2)),
+                                  thickness=10, outlinewidth=0,
+                                  tickfont=dict(color=TEXTO_3, size=10))),
+        hovertemplate="SW = %{x:.4g}<br>código = %{y:.4g}<extra></extra>"))
+    dentro = float(np.mean(np.abs(cod - sw) <= f * np.abs(sw)) * 100)
+    _estilo(fig, f"{nombre}: paridad  ·  {dentro:.0f} % de las secciones dentro de "
+                 f"±{banda_pct:g} %", alto=420)
+    fig.update_layout(hovermode="closest", showlegend=False)
+    # Mismo rango en los dos ejes: la diagonal queda a 45°
+    holgura = 0.05 * (lim[1] - lim[0] or 1.0)
+    rango = [lim[0] - holgura, lim[1] + holgura]
+    fig.update_xaxes(title_text=f"SolidWorks [{unidad}]", showspikes=False, range=rango,
+                     constrain="domain")
+    fig.update_yaxes(title_text=f"Código 1D [{unidad}]", showspikes=False, range=rango,
+                     scaleanchor="x", scaleratio=1, constrain="domain")
+    return fig
+
+
+def figura_globales(filas):
+    """
+    Barras horizontales con el error % de cada magnitud global (ṁ, Me, pe, F).
+    Franjas: ±2 % excelente, ±5 % bueno. filas = [(nombre, error_pct)].
+    """
+    nombres = [n for n, _ in filas]
+    errores = [e for _, e in filas]
+    colores = [COLOR_REGIMEN["adaptada"] if abs(e) <= 2 else "#F2C94C" if abs(e) <= 5
+               else COLOR_ERROR for e in errores]
+    fig = go.Figure(go.Bar(x=errores, y=nombres, orientation="h", marker_color=colores,
+                           text=[f"{e:+.2f} %" for e in errores], textposition="outside",
+                           textfont=dict(color=TEXTO, family="'IBM Plex Mono', monospace"),
+                           hovertemplate="%{y}: %{x:+.2f} %<extra></extra>"))
+    tope = max(8.0, 1.3 * max(abs(e) for e in errores))
+    for limite, alfa in ((5, 0.06), (2, 0.08)):
+        fig.add_vrect(x0=-limite, x1=limite, fillcolor=COLOR_REGIMEN["adaptada"], opacity=alfa,
+                      line_width=0, layer="below")
+    fig.add_vline(x=0, line=dict(color=TEXTO_2, width=1))
+    _estilo(fig, "Magnitudes globales: error del código respecto a SolidWorks",
+            alto=120 + 55 * len(filas))
+    fig.update_layout(hovermode="closest", showlegend=False, bargap=0.45)
+    fig.update_xaxes(title_text="Error relativo [%]   (franjas: ±2 % y ±5 %)",
+                     range=[-tope, tope], showspikes=False, zeroline=False)
+    fig.update_yaxes(showspikes=False, autorange="reversed")
     return fig

@@ -62,7 +62,13 @@ El programa tiene seis pestañas:
    tamaño, T0 y p0, número de Reynolds en la garganta y efecto de γ.
 5. **Comparar casos**: dos casos lado a lado (hoja de datos, perfiles, Mach y C_F).
 6. **Validación SolidWorks** (después de simular): se modela `contorno.dxf` en
-   SolidWorks, se corre Flow Simulation y se sube el `.csv` para compararlo.
+   SolidWorks, se corre Flow Simulation y se sube el `.csv` para compararlo. El
+   error se muestra de cuatro formas: empalme animado de las dos curvas (el área
+   entre ellas es el error y un cursor recorre la tobera), mapa de error sobre la
+   tobera, gráfica de paridad con franja de ±5 % y error contra x. También se
+   pueden capturar los goals de Flow Simulation (ṁ, Me, pe, F) para comparar las
+   magnitudes globales. Con *Probar con datos de ejemplo* se ve la presentación
+   antes de tener el CFD (son datos sintéticos, no de SolidWorks).
 
 En Resultados, el botón *Reporte PDF* genera un reporte técnico del caso con la
 hoja de datos y las figuras.
@@ -71,7 +77,7 @@ Al guardar, el caso se escribe en `casos/<nombre>.json`. Si ya existe otro
 caso con ese nombre (distinto del que se abrió), la interfaz pide confirmación
 antes de reemplazarlo.
 
-La interfaz usa un tema negro con acento naranja (`.streamlit/config.toml`); la paleta está en
+La interfaz usa un tema grafito con azul rey y la tipografía IBM Plex (`.streamlit/config.toml`); la paleta está en
 `graficas_gui.py` y el CSS adicional en `estilo.py`. Los PNG de `graficas.py`
 se quedan con fondo blanco para el reporte. Cada gráfica de la interfaz se
 puede descargar como PNG en alta resolución con el ícono de cámara.
