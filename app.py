@@ -4,7 +4,8 @@ app.py — Interfaz gráfica de TOBERA-CD (Streamlit).
 Uso:
     streamlit run app.py
 
-Flujo en tres pestañas:
+Primero se muestra una pantalla de inicio; con "Comenzar" se entra al
+programa, que tiene tres pestañas:
   Caso          abrir o crear el .json, ver el perfil y simular
   Resultados    resumen, presión estática y Mach (después de simular)
   Validación    comparar con el CSV de SolidWorks (después de simular y de
@@ -15,6 +16,7 @@ main.py y los módulos de cálculo; el resumen se lee con resumen_txt.py, la
 comparación está en comparacion.py y las figuras en graficas_gui.py.
 """
 
+import base64
 from html import escape
 from pathlib import Path
 
@@ -25,8 +27,8 @@ import comparacion as cmp
 import configuracion as cfg
 import estilo
 from geometria import GEOMETRIA_DEFECTO
-from graficas_gui import (figura_distribucion, figura_error, figura_geometria,
-                          figura_mapa_regimenes, figura_superpuesta)
+from graficas_gui import (ACENTO, CONFIG, figura_campo, figura_distribucion, figura_error,
+                          figura_geometria, figura_mapa_regimenes, figura_superpuesta)
 from interactivo import DESCRIPCION_GEOMETRIA
 from main import NOMBRES_REGIMEN
 from resumen_txt import parsear_resumen
@@ -255,7 +257,7 @@ def pestana_caso():
         return
     d, geo, g = pre["diseno"], pre["geometria"], pre["caso"]["geometria"]
     st.plotly_chart(figura_geometria(pre["tramos"], geo, d, g["espesor_pared_mm"] / 1e3,
-                                     g["tipo_pared"]), theme=None)
+                                     g["tipo_pared"]), theme=None, config=CONFIG)
 
 
 # ---------------------------------------------------------------------
@@ -341,8 +343,23 @@ def pestana_resultados(resultado):
 
     st.markdown("### Distribuciones a lo largo de la tobera")
     st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "p", res["criticas"]),
-                    theme=None)
-    st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "M"), theme=None)
+                    theme=None, config=CONFIG)
+    st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "M"), theme=None, config=CONFIG)
+
+    st.markdown("### Campo sobre la tobera")
+    st.caption("Misma solución cuasi-1D pintada sobre la geometría real, como se ve en Flow "
+               "Simulation. Útil para comparar visualmente con el CFD.")
+    dist = res["distribuciones"]
+    i_diseno = next((i for i, d in enumerate(dist) if d["pb"] == caso["pa_Pa"]), 0)
+    c1, c2 = st.columns([4, 1])
+    i_campo = c2.selectbox("Presión exterior", list(range(len(dist))), index=i_diseno,
+                           format_func=lambda i: f"{dist[i]['pb']/1e3:.1f} kPa · "
+                                                 f"{NOMBRES_REGIMEN[dist[i]['regimen']]}",
+                           key=f"campo_pb_{resultado['id']}")
+    variable = c2.radio("Variable", ["Mach", "Presión"], key="campo_var")
+    c1.plotly_chart(figura_campo(res["x"], res["r"], dist[i_campo],
+                                 "M" if variable == "Mach" else "p", caso["camara"]["p0_Pa"]),
+                    theme=None, config=CONFIG)
 
     st.markdown("### Mapa de regímenes")
     st.caption("Empuje de esta tobera para cualquier presión exterior. Las bandas son los "
@@ -351,7 +368,7 @@ def pestana_resultados(resultado):
     curva = curva_empuje(caso["camara"]["p0_Pa"], caso["camara"]["T0_K"], d["At"], d["Ae_At"],
                          caso["gas"]["gamma"], caso["gas"]["R"])
     st.plotly_chart(figura_mapa_regimenes(curva, res["criticas"], caso["camara"]["p0_Pa"],
-                                          caso["pa_Pa"], res["analisis"]), theme=None)
+                                          caso["pa_Pa"], res["analisis"]), theme=None, config=CONFIG)
 
     st.markdown("### Archivos")
     st.caption(f"Guardados en {resultado['salida']}/")
@@ -474,8 +491,8 @@ def pestana_validacion(resultado):
         k[3].metric("Cobertura de la tobera", f"{m['cobertura_pct']:.0f} %")
         g1, g2 = st.columns(2)
         g1.plotly_chart(figura_superpuesta(x_modelo, y_modelo, comp, nombre, unidad),
-                        theme=None, key=f"sup_{clave}")
-        g2.plotly_chart(figura_error(comp, nombre, unidad, modo), theme=None,
+                        theme=None, config=CONFIG, key=f"sup_{clave}")
+        g2.plotly_chart(figura_error(comp, nombre, unidad, modo), theme=None, config=CONFIG,
                         key=f"err_{clave}")
 
     if comparaciones:
@@ -493,16 +510,119 @@ IMAGENES = (
     ("rs25_toberas.jpg", "Toberas de los motores RS-25 del cohete SLS. Foto: NASA/Eric Bordelon."),
     ("x2_diamantes_choque.jpg", "Diamantes de choque en el escape del X-2. Foto: NASA."),
 )
+EQUIPO = "Aldo Sánchez · Andrés Bernal · Ezequiel Trejo · Mateo de Lafuente · Valeria Rodríguez"
 
 # Silueta de una tobera convergente–divergente para el encabezado
 LOGO = (
-    '<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="#38BDF8" '
+    f'<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="{ACENTO}" '
     'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M2 5 L9 5 Q12 5 13 10 Q14 12 16 10 L24 3"/>'
     '<path d="M2 21 L9 21 Q12 21 13 16 Q14 14 16 16 L24 23"/>'
     '<path d="M2 13 L24 13" stroke-dasharray="2 2" stroke-width="1" opacity="0.6"/></svg>'
 )
 
+
+# ---------------------------------------------------------------------
+# Pantalla de inicio
+# ---------------------------------------------------------------------
+
+CIFRAS = (
+    ("1<span>D</span>", "Flujo cuasi-unidimensional e isentrópico"),
+    ("7", "Regímenes de operación clasificados"),
+    ("3", "Presiones críticas p₁, p₂, p₃ y choque normal"),
+    ("DXF", "Contorno listo para SolidWorks"),
+)
+TARJETAS = (
+    ("Dimensionamiento", "Garganta y salida para expansión ideal a partir del empuje "
+                         "requerido, la cámara y la altitud."),
+    ("Regímenes", "Presiones críticas p₁, p₂ y p₃ y clasificación del flujo para cualquier "
+                  "presión exterior."),
+    ("Choque normal", "Posición del choque dentro de la divergente y estado aguas abajo "
+                      "con p₀₂/p₀₁."),
+    ("Empuje y C_F", "Balance de cantidad de movimiento en un volumen de control: "
+                     "F = ṁVₑ + (pₑ − p_b)Aₑ."),
+    ("Geometría real", "Contorno cónico con garganta redondeada y M(x), p(x), T(x) sobre "
+                       "esa geometría."),
+    ("Validación CFD", "Comparación contra Flow Simulation: RMSE, error máximo y "
+                       "cobertura a lo largo del eje."),
+)
+PASOS = (
+    ("Define el caso", "Gas, cámara, ambiente y empuje requerido."),
+    ("Simula", "Dimensiones, regímenes, distribuciones y mapa de empuje."),
+    ("Valida", "Sube el .csv de SolidWorks y mide el error teoría–CFD."),
+)
+
+
+@st.cache_data
+def _foto_base64(nombre):
+    ruta = DIR_ASSETS / nombre
+    return base64.b64encode(ruta.read_bytes()).decode() if ruta.exists() else ""
+
+
+def _entrar():
+    st.session_state["en_programa"] = True
+
+
+def pantalla_inicio():
+    """Portada del proyecto. El programa se abre con el botón Comenzar."""
+    estilo.ocultar_barra_lateral()
+    foto = _foto_base64(IMAGENES[0][0])
+    fondo = f"url(data:image/jpeg;base64,{foto})" if foto else "none"
+    st.markdown(
+        f'<div class="hero" style="--foto: {fondo};">'
+        '<div class="antetitulo">Mecánica de Fluidos · Ingeniería Aeroespacial · UNAM</div>'
+        '<div class="gran-titulo">TOBERA<span>-CD</span></div>'
+        '<div class="lema">Diseño, análisis y validación de toberas convergente–divergentes.</div>'
+        '<div class="texto">A partir del empuje requerido, las condiciones de cámara y la '
+        'altitud, la herramienta dimensiona la tobera, predice su régimen de operación para '
+        'cualquier presión exterior, localiza el choque normal y genera el contorno para '
+        'validarlo en SolidWorks Flow Simulation.</div>'
+        f'<div class="creditos-foto">{escape(IMAGENES[0][1])}</div></div>',
+        unsafe_allow_html=True,
+    )
+    c1, _ = st.columns([1, 5])
+    c1.button("Comenzar  →", type="primary", on_click=_entrar, width="stretch",
+              key="comenzar")
+
+    st.markdown('<div class="seccion-inicio">En números</div><div class="cifras">' +
+                "".join(f'<div class="cifra"><div class="valor">{v}</div>'
+                        f'<div class="etiqueta">{escape(e)}</div></div>' for v, e in CIFRAS) +
+                "</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="seccion-inicio">Qué hace</div><div class="tarjetas">' +
+                "".join(f'<div class="tarjeta"><div class="num">{i:02d}</div>'
+                        f'<div class="nombre">{escape(n)}</div>'
+                        f'<div class="desc">{escape(d)}</div></div>'
+                        for i, (n, d) in enumerate(TARJETAS, 1)) +
+                "</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="seccion-inicio">Modelo físico</div>', unsafe_allow_html=True)
+    e1, e2, e3 = st.columns(3)
+    with e1:
+        st.latex(r"\frac{A}{A^*}=\frac{1}{M}\left[\frac{2}{\gamma+1}\left(1+"
+                 r"\frac{\gamma-1}{2}M^2\right)\right]^{\frac{\gamma+1}{2(\gamma-1)}}")
+        st.caption("Relación área–Mach (flujo isentrópico)")
+    with e2:
+        st.latex(r"M_2^2=\frac{1+\frac{\gamma-1}{2}M_1^2}{\gamma M_1^2-\frac{\gamma-1}{2}}")
+        st.caption("Choque normal")
+    with e3:
+        st.latex(r"F=\dot m\,V_e+(p_e-p_b)\,A_e")
+        st.caption("Empuje por volumen de control")
+
+    st.markdown('<div class="seccion-inicio">Cómo se usa</div><div class="pasos">' +
+                "".join(f'<div class="paso"><div class="nombre">{i}. {escape(n)}</div>'
+                        f'<div class="desc">{escape(d)}</div></div>'
+                        for i, (n, d) in enumerate(PASOS, 1)) +
+                "</div>", unsafe_allow_html=True)
+
+    st.markdown(f'<div class="pie-inicio"><span>{EQUIPO}</span>'
+                '<span>ENES Juriquilla · UNAM · Fotos: NASA (dominio público)</span></div>',
+                unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------
+# Programa
+# ---------------------------------------------------------------------
 
 def encabezado():
     """Barra de título compacta con los datos principales del caso que se edita."""
@@ -522,9 +642,19 @@ def encabezado():
     )
 
 
+def _volver_al_inicio():
+    # Streamlit borra el estado de los widgets que no se dibujan; se guarda una
+    # copia del formulario para recuperarlo al volver al programa.
+    ss = st.session_state
+    ss["_formulario_guardado"] = {k: v for k, v in ss.items()
+                                  if k.startswith(("f_", "g_")) or k == "sel_caso"}
+    ss["en_programa"] = False
+
+
 def barra_lateral():
     """Información del proyecto, datos necesarios y fotografías de referencia."""
     with st.sidebar:
+        st.button("←  Volver al inicio", on_click=_volver_al_inicio, width="stretch")
         st.markdown("### Proyecto")
         st.markdown("Proyecto final de **Mecánica de Fluidos** · Ingeniería Aeroespacial, "
                     "ENES Juriquilla, UNAM.")
@@ -543,11 +673,15 @@ def barra_lateral():
             if ruta.exists():
                 st.image(str(ruta), caption=pie, width="stretch")
         st.markdown("### Equipo")
-        st.caption("Aldo Sánchez · Andrés Bernal · Ezequiel Trejo · Mateo de Lafuente · "
-                   "Valeria Rodríguez")
+        st.caption(EQUIPO)
 
 
 def main():
+    if not st.session_state.get("en_programa"):
+        pantalla_inicio()
+        return
+
+    st.session_state.update(st.session_state.pop("_formulario_guardado", {}))
     pendiente = st.session_state.pop("_sel_pendiente", None)
     if pendiente:
         st.session_state["sel_caso"] = pendiente

@@ -42,14 +42,16 @@ Interfaz gráfica (se abre en el navegador):
 streamlit run app.py
 ```
 
-La interfaz tiene tres pestañas:
+La interfaz abre con una pantalla de inicio (botón *Comenzar*). El programa tiene
+tres pestañas:
 
 1. **Caso**: abrir un `.json` de `casos/` o subir uno, editarlo en el
    formulario (o empezar uno nuevo), guardarlo y simularlo. El perfil de la
    tobera se actualiza al editar.
 2. **Resultados** (después de simular): resumen del caso con el régimen de
    cada presión exterior, presión estática (con p1, p2 y p3 marcadas) y Mach a
-   lo largo de la tobera, mapa de regímenes (empuje contra presión exterior) y
+   lo largo de la tobera, campo de Mach o presión pintado sobre la tobera (vista
+   tipo CFD), mapa de regímenes (empuje contra presión exterior) y
    descarga de `contorno.dxf` y demás archivos.
 3. **Validación SolidWorks** (después de simular): se modela `contorno.dxf` en
    SolidWorks, se corre Flow Simulation y se sube el `.csv` para compararlo.
@@ -58,9 +60,10 @@ Al guardar, el caso se escribe en `casos/<nombre>.json`. Si ya existe otro
 caso con ese nombre (distinto del que se abrió), la interfaz pide confirmación
 antes de reemplazarlo.
 
-La interfaz usa un tema oscuro (`.streamlit/config.toml`); la paleta está en
+La interfaz usa un tema negro con acento naranja (`.streamlit/config.toml`); la paleta está en
 `graficas_gui.py` y el CSS adicional en `estilo.py`. Los PNG de `graficas.py`
-se quedan con fondo blanco para el reporte.
+se quedan con fondo blanco para el reporte. Cada gráfica de la interfaz se
+puede descargar como PNG en alta resolución con el ícono de cámara.
 
 Los resultados se guardan en `salidas/<nombre del caso>/`:
 
