@@ -25,12 +25,15 @@ import comparacion as cmp
 import configuracion as cfg
 import estilo
 from geometria import GEOMETRIA_DEFECTO
-from graficas_gui import figura_distribucion, figura_error, figura_geometria, figura_superpuesta
+from graficas_gui import (figura_distribucion, figura_error, figura_geometria,
+                          figura_mapa_regimenes, figura_superpuesta)
 from interactivo import DESCRIPCION_GEOMETRIA
 from main import NOMBRES_REGIMEN
 from resumen_txt import parsear_resumen
+from tobera import curva_empuje
 
-st.set_page_config(page_title="Simulación y Validación de Toberas", layout="wide")
+st.set_page_config(page_title="TOBERA-CD · Toberas convergente–divergentes", page_icon="🚀",
+                   layout="wide", initial_sidebar_state="expanded")
 estilo.aplicar()
 
 DIR_ASSETS = Path(__file__).parent / "assets"
@@ -50,6 +53,13 @@ LIMITES_GEOMETRIA = {
     "espesor_pared_mm": (0.01, 100.0, 0.5),
 }
 PAREDES = {"constante": "Espesor constante", "cilindrica": "Tubo recto"}
+# Texto del régimen (como sale en resumen.txt) -> clave, para colorear las insignias
+CLAVE_REGIMEN = {texto: clave for clave, texto in NOMBRES_REGIMEN.items()}
+
+
+def grupo(texto):
+    """Pequeño título de sección dentro del formulario."""
+    st.markdown(f'<div class="grupo">{escape(texto)}</div>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------
@@ -112,16 +122,19 @@ def _formulario():
 
     gas, camara, ambiente, diseno = st.columns(4)
     with gas:
+        grupo("Gas")
         st.number_input("gamma [–]", min_value=1.01, max_value=1.67, step=0.01,
                         format="%.3f", key="f_gamma")
         st.number_input("R [J/(kg·K)]", min_value=1.0, max_value=5000.0, step=1.0,
                         format="%.2f", key="f_R")
     with camara:
+        grupo("Cámara")
         st.number_input("Presión de cámara p0 [MPa]", min_value=0.01, max_value=100.0,
                         step=0.1, format="%.4f", key="f_p0_MPa")
         st.number_input("Temperatura de cámara T0 [K]", min_value=1.0, max_value=5000.0,
                         step=10.0, format="%.1f", key="f_T0_K")
     with ambiente:
+        grupo("Ambiente")
         por_altitud = st.radio("Ambiente definido por", ["Altitud", "Presión"],
                                horizontal=True, key="f_ambiente") == "Altitud"
         # Se dibujan los dos campos (uno deshabilitado) para que Streamlit
@@ -131,13 +144,14 @@ def _formulario():
         st.number_input("Presión ambiente [kPa]", min_value=0.001, max_value=10000.0,
                         step=1.0, format="%.3f", key="f_pa_kPa", disabled=por_altitud)
     with diseno:
+        grupo("Diseño")
         st.number_input("Empuje requerido [N]", min_value=0.001, max_value=1e7, step=10.0,
                         format="%.3f", key="f_F_N")
         st.text_input("Presiones exteriores [kPa]", key="f_pb_kPa",
                       help='Lista separada por comas, o "auto" para una por régimen. '
                            "La presión ambiente de diseño siempre se analiza.")
 
-    with st.expander("Geometría"):
+    with st.expander("Geometría de la tobera (valores por defecto si no se cambian)"):
         columnas = st.columns(4)
         for i, (clave, texto) in enumerate(DESCRIPCION_GEOMETRIA.items()):
             minimo, maximo, paso = LIMITES_GEOMETRIA[clave]
@@ -165,6 +179,16 @@ def _guardar_y_simular(caso, simular):
         st.session_state["_sel_pendiente"] = str(ruta)
         st.session_state["aviso"] = ("success", mensaje)
     st.rerun()
+
+
+def _sobrescribe_otro_caso(caso):
+    """True si guardar reemplazaría un .json de casos/ distinto del que se abrió."""
+    try:
+        destino = cfg.DIR_CASOS / f"{cfg.nombre_archivo(caso['nombre'])}.json"
+    except ValueError:
+        return False
+    origen = Path(st.session_state.get("origen_caso", ""))
+    return destino.exists() and origen.resolve() != destino.resolve()
 
 
 def pestana_caso():
@@ -199,19 +223,29 @@ def pestana_caso():
     except ValueError as e:
         caso, error = None, str(e)
 
-    b1, b2, _ = st.columns([1, 1, 4])
-    guardar = b1.button("Guardar", disabled=caso is None)
-    simular = b2.button("Guardar y simular", type="primary", disabled=caso is None)
+    bloqueado = caso is None
+    if caso is not None and _sobrescribe_otro_caso(caso):
+        destino = f"{cfg.nombre_archivo(caso['nombre'])}.json"
+        st.warning(f"Ya existe casos/{destino} y no es el caso que abriste. "
+                   "Al guardar se reemplaza. Cambia el nombre o confirma.")
+        bloqueado = not st.checkbox(f"Sí, reemplazar casos/{destino}", key=f"conf_{destino}")
+
+    b1, b2, b3, _ = st.columns([1, 1.3, 1.3, 3])
+    guardar = b1.button("Guardar", disabled=bloqueado, width="stretch")
+    simular = b2.button("Guardar y simular", type="primary", disabled=bloqueado,
+                        width="stretch")
     if caso is None:
         st.error(f"Revisa el formulario: {error}")
     else:
-        st.download_button("Descargar .json", cfg.caso_a_json(caso),
-                           file_name=f"{caso['nombre']}.json", mime="application/json")
+        b3.download_button("Descargar .json", cfg.caso_a_json(caso),
+                           file_name=f"{caso['nombre']}.json", mime="application/json",
+                           width="stretch")
     if guardar or simular:
         _guardar_y_simular(caso, simular)
 
     st.divider()
     st.subheader("Perfil de la tobera")
+    st.caption("Vista previa: se actualiza al editar el formulario, sin simular.")
     if caso is None:
         return
     try:
@@ -228,14 +262,18 @@ def pestana_caso():
 # Pestaña: resultados
 # ---------------------------------------------------------------------
 
-def mostrar_tabla(df, derecha=()):
+def mostrar_tabla(df, derecha=(), insignia=None):
     """
     Tabla de datos en HTML (clase tabla-datos, ver estilo.py). Las columnas de
     'derecha' son numéricas: van alineadas a la derecha y en fuente monoespaciada.
+    La columna 'insignia' (el régimen) se dibuja como etiqueta de color.
     """
     def celda(etiqueta, valor, columna):
         clase = "num" if columna in derecha else "txt"
-        return f'<{etiqueta} class="{clase}">{escape(str(valor))}</{etiqueta}>'
+        texto = escape(str(valor))
+        if etiqueta == "td" and columna == insignia:
+            texto = f'<span class="insignia {CLAVE_REGIMEN.get(valor, "")}">{texto}</span>'
+        return f'<{etiqueta} class="{clase}">{texto}</{etiqueta}>'
 
     cabecera = "".join(celda("th", c, c) for c in df.columns)
     filas = "".join("<tr>" + "".join(celda("td", v, c) for c, v in fila.items()) + "</tr>"
@@ -245,7 +283,7 @@ def mostrar_tabla(df, derecha=()):
 
 
 KPIS = ("Mach de salida", "Diámetro de garganta", "Diámetro de salida", "Gasto másico",
-        "Longitud total")
+        "Coeficiente de empuje", "Longitud total")
 
 
 def _boton_archivo(resultado, nombre, mime, etiqueta, columna=st, prefijo="res"):
@@ -273,10 +311,12 @@ def pestana_resultados(resultado):
     valores = datos["dimensionamiento"] + datos["geometria"]
     elegidos = [next(v for v in valores if v["nombre"].startswith(k)) for k in KPIS
                 if any(v["nombre"].startswith(k) for v in valores)]
-    for col, v in zip(st.columns(len(elegidos)), elegidos):
-        col.metric(v["nombre"], f"{v['texto']} {v['unidad']}".strip())
+    # Tarjetas en filas de 3 para que los valores no se corten
+    for i in range(0, len(elegidos), 3):
+        for col, v in zip(st.columns(3), elegidos[i:i + 3]):
+            col.metric(v["nombre"], f"{v['texto']} {v['unidad']}".strip())
 
-    st.markdown("**Análisis por presión exterior**")
+    st.markdown("### Análisis por presión exterior")
     def fmt(valor, formato):
         return "–" if valor is None else format(valor, formato)
 
@@ -287,7 +327,8 @@ def pestana_resultados(resultado):
         "x del choque [mm]": fmt((a["choque"] or {}).get("x_mm"), ".2f"),
     } for a in datos["analisis"]]
     mostrar_tabla(pd.DataFrame(filas), derecha=["p_b [kPa]", "Me", "Gasto [kg/s]",
-                                                "Empuje [N]", "x del choque [mm]"])
+                                                "Empuje [N]", "x del choque [mm]"],
+                  insignia="Régimen")
 
     with st.expander("Todos los valores de resumen.txt"):
         filas = [{"Sección": titulo, "Parámetro": v["etiqueta"], "Valor": v["texto"],
@@ -298,10 +339,22 @@ def pestana_resultados(resultado):
                  for v in datos[clave]]
         mostrar_tabla(pd.DataFrame(filas), derecha=["Valor"])
 
-    st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "p"), theme=None)
+    st.markdown("### Distribuciones a lo largo de la tobera")
+    st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "p", res["criticas"]),
+                    theme=None)
     st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "M"), theme=None)
 
-    st.caption(f"Archivos en {resultado['salida']}/")
+    st.markdown("### Mapa de regímenes")
+    st.caption("Empuje de esta tobera para cualquier presión exterior. Las bandas son los "
+               "regímenes que separan p₁, p₂ y p₃; los puntos son las presiones analizadas.")
+    d = res["diseno"]
+    curva = curva_empuje(caso["camara"]["p0_Pa"], caso["camara"]["T0_K"], d["At"], d["Ae_At"],
+                         caso["gas"]["gamma"], caso["gas"]["R"])
+    st.plotly_chart(figura_mapa_regimenes(curva, res["criticas"], caso["camara"]["p0_Pa"],
+                                          caso["pa_Pa"], res["analisis"]), theme=None)
+
+    st.markdown("### Archivos")
+    st.caption(f"Guardados en {resultado['salida']}/")
     cols = st.columns(4)
     _boton_archivo(resultado, "resumen.txt", "text/plain", "Descargar resumen.txt", cols[0])
     _boton_archivo(resultado, "distribucion.csv", "text/csv", "Descargar distribucion.csv", cols[1])
@@ -441,24 +494,57 @@ IMAGENES = (
     ("x2_diamantes_choque.jpg", "Diamantes de choque en el escape del X-2. Foto: NASA."),
 )
 
+# Silueta de una tobera convergente–divergente para el encabezado
+LOGO = (
+    '<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="#38BDF8" '
+    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M2 5 L9 5 Q12 5 13 10 Q14 12 16 10 L24 3"/>'
+    '<path d="M2 21 L9 21 Q12 21 13 16 Q14 14 16 16 L24 23"/>'
+    '<path d="M2 13 L24 13" stroke-dasharray="2 2" stroke-width="1" opacity="0.6"/></svg>'
+)
+
 
 def encabezado():
-    """Título y dos fotografías de referencia (créditos en assets/CREDITOS.md)."""
-    texto, *columnas = st.columns([2.2, 1, 1])
-    with texto:
-        st.title("Interfaz de Simulación y Validación de Toberas")
+    """Barra de título compacta con los datos principales del caso que se edita."""
+    ss = st.session_state
+    chips = [("Caso", ss.get("f_nombre", "–")), ("γ", f"{ss.get('f_gamma', 0):.3f}"),
+             ("p₀", f"{ss.get('f_p0_MPa', 0):.3g} MPa"), ("T₀", f"{ss.get('f_T0_K', 0):.0f} K"),
+             ("F", f"{ss.get('f_F_N', 0):.4g} N")]
+    html_chips = "".join(f'<span class="chip">{escape(k)} <b>{escape(str(v))}</b></span>'
+                         for k, v in chips)
+    st.markdown(
+        f'<div class="encabezado"><div class="marca"><div class="logo">{LOGO}</div><div>'
+        '<div class="titulo">TOBERA<span>-CD</span></div>'
+        '<div class="subtitulo">Diseño, análisis y validación de toberas '
+        'convergente–divergentes</div></div></div>'
+        f'<div class="chips">{html_chips}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def barra_lateral():
+    """Información del proyecto, datos necesarios y fotografías de referencia."""
+    with st.sidebar:
+        st.markdown("### Proyecto")
+        st.markdown("Proyecto final de **Mecánica de Fluidos** · Ingeniería Aeroespacial, "
+                    "ENES Juriquilla, UNAM.")
+        st.markdown("### Cómo se usa")
         st.markdown(
-            "**Datos necesarios**\n"
-            "- Gas: γ y R\n"
-            "- Cámara: presión y temperatura\n"
-            "- Ambiente: altitud o presión\n"
-            "- Empuje requerido\n"
-            "- Para validar: .csv de SolidWorks"
+            "1. **Caso**: datos del gas, la cámara, el ambiente y el empuje.\n"
+            "2. **Resultados**: dimensiones, regímenes, p(x), M(x) y empuje.\n"
+            "3. **Validación**: sube el .csv de SolidWorks Flow Simulation."
         )
-    for col, (archivo, pie) in zip(columnas, IMAGENES):
-        ruta = DIR_ASSETS / archivo
-        if ruta.exists():
-            col.image(str(ruta), caption=pie)
+        st.markdown("### Modelo")
+        st.markdown("Flujo cuasi-1D, permanente y adiabático de un gas ideal calóricamente "
+                    "perfecto; isentrópico salvo en el choque normal.")
+        st.markdown("### Referencias")
+        for archivo, pie in IMAGENES:
+            ruta = DIR_ASSETS / archivo
+            if ruta.exists():
+                st.image(str(ruta), caption=pie, width="stretch")
+        st.markdown("### Equipo")
+        st.caption("Aldo Sánchez · Andrés Bernal · Ezequiel Trejo · Mateo de Lafuente · "
+                   "Valeria Rodríguez")
 
 
 def main():
@@ -467,6 +553,7 @@ def main():
         st.session_state["sel_caso"] = pendiente
     inicializar()
 
+    barra_lateral()
     encabezado()
     tab_caso, tab_res, tab_val = st.tabs(["Caso", "Resultados", "Validación SolidWorks"])
     resultado = st.session_state.get("resultado")

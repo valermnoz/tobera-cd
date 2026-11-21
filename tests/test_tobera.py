@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from tobera import (
-    dimensionar, distribucion, empuje, estado_salida,
+    curva_empuje, dimensionar, distribucion, empuje, estado_salida,
     posicion_choque, presion_atmosferica, presiones_criticas, regimen,
 )
 
@@ -94,3 +94,20 @@ def test_distribucion_con_choque(caso):
     assert d["x_choque"] is not None and 0 < d["x_choque"] < x[-1]
     assert d["p"][-1] == pytest.approx(683e3, rel=5e-3)
     assert d["M"].max() == pytest.approx(1.92, abs=0.02)
+
+
+def test_curva_empuje_recorre_los_regimenes(caso):
+    curva = curva_empuje(P0, T0, caso["At"], caso["Ae_At"])
+    # pb crece a lo largo de la curva: subexpandida -> ... -> subsónico
+    assert np.all(np.diff(curva["pb"]) > 0)
+    assert curva["regimen"][0] == "subexpandida"
+    assert curva["regimen"][-1] == "subsonico"
+    assert {"sobreexpandida", "choque_interno"} <= set(curva["regimen"])
+    # El empuje baja al subir la presión exterior
+    assert np.all(np.diff(curva["F"]) < 0)
+
+
+def test_curva_empuje_coincide_con_el_diseno(caso):
+    curva = curva_empuje(P0, T0, caso["At"], caso["Ae_At"])
+    F_pa = np.interp(PA, curva["pb"], curva["F"])
+    assert F_pa == pytest.approx(F, rel=1e-3)

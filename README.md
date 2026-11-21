@@ -47,13 +47,20 @@ La interfaz tiene tres pestañas:
 1. **Caso**: abrir un `.json` de `casos/` o subir uno, editarlo en el
    formulario (o empezar uno nuevo), guardarlo y simularlo. El perfil de la
    tobera se actualiza al editar.
-2. **Resultados** (después de simular): resumen del caso, presión estática y
-   Mach a lo largo de la tobera, y descarga de `contorno.dxf` y demás archivos.
+2. **Resultados** (después de simular): resumen del caso con el régimen de
+   cada presión exterior, presión estática (con p1, p2 y p3 marcadas) y Mach a
+   lo largo de la tobera, mapa de regímenes (empuje contra presión exterior) y
+   descarga de `contorno.dxf` y demás archivos.
 3. **Validación SolidWorks** (después de simular): se modela `contorno.dxf` en
    SolidWorks, se corre Flow Simulation y se sube el `.csv` para compararlo.
 
-Al guardar, el caso se escribe en `casos/<nombre>.json` y reemplaza el archivo
-si ya existía.
+Al guardar, el caso se escribe en `casos/<nombre>.json`. Si ya existe otro
+caso con ese nombre (distinto del que se abrió), la interfaz pide confirmación
+antes de reemplazarlo.
+
+La interfaz usa un tema oscuro (`.streamlit/config.toml`); la paleta está en
+`graficas_gui.py` y el CSS adicional en `estilo.py`. Los PNG de `graficas.py`
+se quedan con fondo blanco para el reporte.
 
 Los resultados se guardan en `salidas/<nombre del caso>/`:
 

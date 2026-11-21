@@ -237,6 +237,32 @@ def coeficiente_empuje(F, p0, At):
     return F / (p0 * At)
 
 
+def curva_empuje(p0, T0, At, Ae_At, g=GAMMA_AIRE, R=R_AIRE, n=200):
+    """
+    Barrido de la presión exterior para una tobera ya dimensionada.
+
+    Recorre pb desde p3/5 (subexpandida) hasta casi p0 (sin flujo) con
+    espaciado logarítmico y devuelve, para cada pb, el régimen, la presión
+    de salida pe, el gasto m, el empuje F y C_F. Sirve para el mapa de
+    regímenes de la interfaz.
+    """
+    crit = presiones_criticas(p0, Ae_At, g)
+    Ae = Ae_At * At
+    curva = {"pb": [], "pe": [], "m": [], "F": [], "CF": [], "regimen": []}
+    for pb in np.geomspace(crit["p3"] / 5, 0.999 * p0, n):
+        s = estado_salida(pb, p0, T0, At, Ae_At, g, R)
+        F = empuje(s["m"], s["Ve"], s["pe"], pb, Ae)
+        curva["pb"].append(pb)
+        curva["pe"].append(s["pe"])
+        curva["m"].append(s["m"])
+        curva["F"].append(F)
+        curva["CF"].append(coeficiente_empuje(F, p0, At))
+        curva["regimen"].append(s["regimen"])
+    for clave in ("pb", "pe", "m", "F", "CF"):
+        curva[clave] = np.array(curva[clave])
+    return curva
+
+
 # ---------------------------------------------------------------------
 # 7. Distribución a lo largo de la tobera
 # ---------------------------------------------------------------------

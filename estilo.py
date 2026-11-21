@@ -1,124 +1,170 @@
 """
 estilo.py — Identidad visual de la interfaz (CSS sobre el tema de .streamlit/config.toml).
 
-Estilo técnico tipo CAD/CAE: fondo blanco, bordes finos de 1 px y esquinas de
-4 px, azul acero y cian como acento, y fuente monoespaciada en los valores
-numéricos (KPIs y tablas de datos). Los colores salen de graficas.py para que
-la interfaz y las gráficas usen la misma paleta.
+Estilo técnico tipo CAD/CAE en modo oscuro: fondo azul marino, paneles con
+bordes finos de 1 px, azul cielo como acento y fuente monoespaciada en los
+valores numéricos (KPIs y tablas de datos). Los colores salen de
+graficas_gui.py para que la interfaz y las gráficas usen la misma paleta.
 """
 
 from string import Template
 
 import streamlit as st
 
-from graficas import AZUL, BORDE, EJES, FONDO_TARJETA, REJILLA, TINTA, TINTA_2
+from graficas_gui import (ACENTO, BORDE, COLOR_REGIMEN, EJES, FONDO, PANEL, PANEL_2, REJILLA,
+                          TEXTO, TEXTO_2, TEXTO_3)
 
-MONO = '"JetBrains Mono", Consolas, "SF Mono", Menlo, monospace'
-GRIS_PANEL = "#F1F5F9"  # igual que secondaryBackgroundColor
+MONO = '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace'
 
 CSS = Template("""
-.stApp { background: #FFFFFF; }
-[data-testid="stHeader"] { background: #FFFFFF; border-bottom: 1px solid $borde; }
-.block-container { padding-top: 3.5rem; }
+.stApp { background: $fondo; }
+[data-testid="stHeader"] { background: transparent; }
+.block-container { padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1400px; }
 
-h1 {
-  color: #0F172A; font-weight: 600; letter-spacing: -0.01em;
-  padding-bottom: 0.4rem; border-bottom: 2px solid $azul; margin-bottom: 0.8rem;
+h1, h2, h3, h4 { color: $texto; font-weight: 600; letter-spacing: -0.01em; }
+h3 { font-size: 1.15rem; }
+hr { border-color: $borde !important; }
+[data-testid="stCaptionContainer"] { color: $texto2; }
+a { color: $acento; }
+
+/* Encabezado compacto */
+.encabezado {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap; padding: 0.9rem 1.2rem; margin-bottom: 1rem;
+  background: linear-gradient(110deg, rgba(56,189,248,0.10), rgba(56,189,248,0) 55%), $panel;
+  border: 1px solid $borde; border-radius: 8px;
 }
-h2, h3, h4 { color: #0F172A; font-weight: 600; }
-hr { border-color: $borde; }
-[data-testid="stCaptionContainer"] { color: $tinta2; }
+.encabezado .marca { display: flex; align-items: center; gap: 0.9rem; }
+.encabezado .logo {
+  width: 42px; height: 42px; border-radius: 8px; flex: none;
+  display: grid; place-items: center;
+  background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.35);
+}
+.encabezado .titulo { font-size: 1.35rem; font-weight: 700; color: $texto; line-height: 1.15; }
+.encabezado .titulo span { color: $acento; }
+.encabezado .subtitulo { font-size: 0.85rem; color: $texto2; }
+.encabezado .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.chip {
+  font-size: 0.75rem; color: $texto2; padding: 0.2rem 0.6rem; border-radius: 999px;
+  border: 1px solid $borde; background: $fondo; white-space: nowrap;
+}
+.chip b { color: $texto; font-weight: 600; font-family: $mono; }
+
+/* Barra lateral */
+[data-testid="stSidebar"] { border-right: 1px solid $borde; }
+[data-testid="stSidebar"] h3 {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: $texto3;
+  margin-top: 0.6rem;
+}
+[data-testid="stSidebar"] li, [data-testid="stSidebar"] p { font-size: 0.86rem; }
 
 /* Tarjetas de métricas (KPIs) */
 [data-testid="stMetric"] {
-  background: $fondo; border: 1px solid $borde; border-radius: 4px;
-  padding: 0.65rem 0.9rem;
+  background: $panel; border: 1px solid $borde; border-radius: 8px;
+  padding: 0.75rem 1rem; border-top: 2px solid $acento;
 }
 [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p {
-  color: $tinta2; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: $texto2; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
 }
 [data-testid="stMetricValue"], [data-testid="stMetricValue"] * {
-  font-family: $mono !important; font-weight: 600; color: #0F172A;
+  font-family: $mono !important; font-weight: 600; color: $texto;
 }
-[data-testid="stMetricValue"] { font-size: 1.35rem; }
+[data-testid="stMetricValue"] { font-size: 1.4rem; }
 
 /* Campos de entrada */
 div[data-baseweb="input"], div[data-baseweb="select"] > div, div[data-baseweb="textarea"] {
-  border: 1px solid $borde !important; border-radius: 4px !important;
-  background-color: $panel !important;
+  border-radius: 6px !important; background-color: $fondo !important;
 }
+[data-testid="stNumberInput"] input { font-family: $mono; }
 div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-within {
-  border-color: $azul !important; box-shadow: 0 0 0 1px $azul;
+  border-color: $acento !important; box-shadow: 0 0 0 1px $acento;
 }
-[data-testid="stWidgetLabel"] p { color: $tinta; font-size: 0.85rem; font-weight: 500; }
+[data-testid="stWidgetLabel"] p { color: $texto2; font-size: 0.82rem; font-weight: 500; }
+
+/* Bloques del formulario */
+.grupo {
+  font-size: 0.72rem; font-weight: 600; color: $acento; text-transform: uppercase;
+  letter-spacing: 0.08em; margin: 0.2rem 0 0.4rem 0; padding-bottom: 0.3rem;
+  border-bottom: 1px solid $borde;
+}
 
 /* Pestañas */
-[data-baseweb="tab-list"] { gap: 2px; border-bottom: 1px solid $borde; }
+[data-baseweb="tab-list"] { gap: 0.25rem; border-bottom: 1px solid $borde; }
 button[data-baseweb="tab"] {
-  background: $panel; border: 1px solid $borde; border-bottom: none;
-  border-radius: 4px 4px 0 0; padding: 0.45rem 1.2rem; height: auto;
+  background: transparent; border: none; border-radius: 6px 6px 0 0;
+  padding: 0.55rem 1.1rem; height: auto;
 }
-button[data-baseweb="tab"] p { color: $tinta2; font-weight: 500; }
-button[data-baseweb="tab"][aria-selected="true"] { background: #FFFFFF; }
-button[data-baseweb="tab"][aria-selected="true"] p { color: $azul; font-weight: 600; }
-[data-baseweb="tab-highlight"] { background-color: $azul; height: 2px; }
-[data-baseweb="tab-border"] { background-color: $borde; }
+button[data-baseweb="tab"]:hover { background: $panel; }
+button[data-baseweb="tab"] p { color: $texto2; font-weight: 500; font-size: 0.92rem; }
+button[data-baseweb="tab"][aria-selected="true"] { background: $panel; }
+button[data-baseweb="tab"][aria-selected="true"] p { color: $acento; font-weight: 600; }
+[data-baseweb="tab-highlight"] { background-color: $acento; height: 2px; }
+[data-baseweb="tab-border"] { background-color: transparent; }
 
 /* Botones */
-.stButton > button, .stDownloadButton > button {
-  border: 1px solid $borde; border-radius: 4px; font-weight: 500;
+[data-testid="stBaseButton-secondary"] { border-radius: 6px; font-weight: 500; background: $panel; }
+[data-testid="stBaseButton-secondary"]:hover { border-color: $acento; color: $acento; }
+[data-testid="stBaseButton-primary"] {
+  border-radius: 6px; font-weight: 600; background: $acento; border-color: $acento; color: $fondo;
 }
-.stButton > button:hover, .stDownloadButton > button:hover {
-  border-color: $azul; color: $azul;
-}
-.stButton > button[kind="primary"] { border-color: $azul; }
-.stButton > button[kind="primary"]:hover { color: #FFFFFF; filter: brightness(1.08); }
+[data-testid="stBaseButton-primary"]:hover { color: $fondo; filter: brightness(1.1); }
+[data-testid="stBaseButton-primary"] p { color: $fondo; }
 
 /* Desplegables, cargadores de archivos y avisos */
 [data-testid="stExpander"] details {
-  border: 1px solid $borde; border-radius: 4px; background: #FFFFFF;
+  border: 1px solid $borde; border-radius: 8px; background: $panel;
 }
-[data-testid="stExpander"] summary { background: $fondo; border-radius: 4px; }
 [data-testid="stFileUploaderDropzone"] {
-  border: 1px dashed $ejes; border-radius: 4px; background: $fondo;
+  border: 1px dashed $ejes; border-radius: 8px; background: $panel;
 }
-[data-testid="stAlert"] { border: 1px solid $borde; border-radius: 4px; }
+[data-testid="stAlert"] { border-radius: 8px; }
 
 /* Tablas de datos */
 .tabla-datos { overflow-x: auto; margin-bottom: 1rem; }
 .tabla-datos table {
   width: 100%; border-collapse: separate; border-spacing: 0;
-  border: 1px solid $borde; border-radius: 4px; overflow: hidden;
+  border: 1px solid $borde; border-radius: 8px; overflow: hidden; background: $panel;
 }
 .tabla-datos th {
-  background: $panel; color: #0F172A; font-size: 0.78rem; font-weight: 600;
-  padding: 0.45rem 0.7rem; border-bottom: 1px solid $borde; white-space: nowrap;
+  background: $panel2; color: $texto2; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.55rem 0.8rem; border-bottom: 1px solid $borde; white-space: nowrap;
 }
 .tabla-datos td {
-  font-size: 0.88rem; color: $tinta; padding: 0.4rem 0.7rem;
+  font-size: 0.88rem; color: $texto; padding: 0.5rem 0.8rem;
   border-bottom: 1px solid $rejilla;
 }
 .tabla-datos .txt { text-align: left; }
 .tabla-datos .num { text-align: right; }
 .tabla-datos td.num { font-family: $mono; font-size: 0.84rem; }
 .tabla-datos tbody tr:last-child td { border-bottom: none; }
-.tabla-datos tbody tr:nth-child(even) td { background: $fondo; }
+.tabla-datos tbody tr:hover td { background: $panel2; }
 
-/* Gráficas y fotografías en contenedores limpios */
+/* Insignias de régimen */
+.insignia {
+  display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem;
+  padding: 0.12rem 0.55rem; border-radius: 999px; white-space: nowrap;
+  border: 1px solid currentColor; background: rgba(255,255,255,0.03);
+}
+.insignia::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+$insignias
+
+/* Gráficas y fotografías */
 [data-testid="stPlotlyChart"] {
-  border: 1px solid $borde; border-radius: 4px; padding: 0.25rem; background: #FFFFFF;
+  border: 1px solid $borde; border-radius: 8px; padding: 0.3rem; background: $panel;
+  overflow: hidden;
 }
-[data-testid="stImage"] {
-  background: $fondo; border: 1px solid $borde; border-radius: 4px; padding: 0.5rem;
-  width: 100%;
-}
-[data-testid="stImage"] img { border-radius: 2px; }
+[data-testid="stImage"] img { border-radius: 6px; border: 1px solid $borde; }
 [data-testid="stImageCaption"], [data-testid="stImage"] figcaption {
-  color: $tinta2; font-size: 0.72rem; line-height: 1.3;
+  color: $texto3; font-size: 0.72rem; line-height: 1.3;
 }
 """).safe_substitute(
-    borde=BORDE, azul=AZUL, tinta=TINTA, tinta2=TINTA_2, fondo=FONDO_TARJETA,
-    panel=GRIS_PANEL, ejes=EJES, rejilla=REJILLA, mono=MONO,
+    fondo=FONDO, panel=PANEL, panel2=PANEL_2, borde=BORDE, rejilla=REJILLA, ejes=EJES,
+    texto=TEXTO, texto2=TEXTO_2, texto3=TEXTO_3, acento=ACENTO, mono=MONO,
+    insignias="\n".join(f".insignia.{reg} {{ color: {color}; }}"
+                        for reg, color in COLOR_REGIMEN.items()),
 )
 
 
