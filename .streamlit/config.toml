@@ -1,4 +1,4 @@
-# Tema grafito con azul profundo de la interfaz. Los mismos colores están en graficas_gui.py
+# Tema claro de la interfaz. Los mismos colores están en graficas_gui.py
 # (gráficas Plotly) y estilo.py (CSS adicional).
 
 [client]
@@ -6,20 +6,22 @@
 toolbarMode = "minimal"
 
 [theme]
-base = "dark"
+base = "light"
 primaryColor = "#1F5BD6"
-backgroundColor = "#0C0E13"
-secondaryBackgroundColor = "#13161D"
-textColor = "#E6E8EC"
-borderColor = "#272C37"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F5F8"
+textColor = "#111827"
+borderColor = "#DCE1E8"
 showWidgetBorder = true
 baseRadius = "4px"
-font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
-codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-dataframeBorderColor = "#272C37"
-dataframeHeaderBackgroundColor = "#1B1F28"
+# Helvetica (en Windows, que no la trae, se usa Arial, que es casi igual)
+font = "'Helvetica Neue', Helvetica, Arial, sans-serif"
+headingFont = "'Helvetica Neue', Helvetica, Arial, sans-serif"
+codeFont = "Menlo, Consolas, monospace"
+dataframeBorderColor = "#DCE1E8"
+dataframeHeaderBackgroundColor = "#F3F5F8"
 
 [theme.sidebar]
-backgroundColor = "#0F1218"
-secondaryBackgroundColor = "#161A22"
-borderColor = "#272C37"
+backgroundColor = "#F7F8FA"
+secondaryBackgroundColor = "#FFFFFF"
+borderColor = "#DCE1E8"

@@ -20,13 +20,17 @@ from graficas_gui import (ACENTO, ACENTO_CLARO, BORDE, COLOR_ERROR, COLOR_REGIME
 
 # Colores del veredicto de la validación (clases .insignia.veredicto-*)
 COLOR_VEREDICTO = {"veredicto-excelente": COLOR_REGIMEN["adaptada"],
-                   "veredicto-buena": ACENTO_CLARO, "veredicto-aceptable": "#F2C94C",
+                   "veredicto-buena": ACENTO_CLARO, "veredicto-aceptable": "#CA8A04",
                    "veredicto-revisar": COLOR_ERROR}
 
-MONO = '"IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace'
+# Toda la interfaz en Helvetica; los números usan cifras tabulares para que
+# las columnas queden alineadas
+MONO = '"Helvetica Neue", Helvetica, Arial, sans-serif'
 
 CSS = Template("""
 .stApp { background: $fondo; }
+.lectura-val, .tabla-datos td.num, [data-testid="stMetricValue"], .chip b, .cifra .valor,
+[data-testid="stNumberInput"] input { font-variant-numeric: tabular-nums; }
 [data-testid="stHeader"] { background: transparent; }
 .block-container { padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1400px; }
 
@@ -63,24 +67,26 @@ a { color: $acentoclaro; }
 .hero {
   position: relative; overflow: hidden; border: 1px solid $borde; border-radius: 6px;
   padding: 4.2rem 3rem 3.6rem 3rem; margin-bottom: 1.2rem; min-height: 360px;
+  /* Banda oscura con la foto: da contraste en una página blanca */
   background:
-    linear-gradient(90deg, $fondo 0%, $fondo 38%, rgba(12,14,19,0.6) 70%, rgba(12,14,19,0.25) 100%),
-    var(--foto) right center / cover no-repeat, $fondo;
+    linear-gradient(90deg, #0B1526 0%, #0B1526 38%, rgba(11,21,38,0.65) 70%, rgba(11,21,38,0.25) 100%),
+    var(--foto) right center / cover no-repeat, #0B1526;
+  border-color: #0B1526;
 }
 .hero > * { position: relative; z-index: 1; max-width: 640px; }
 .hero .antetitulo {
-  font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: $acentoclaro;
+  font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: #8DB4F7;
   font-weight: 600; margin-bottom: 0.9rem;
 }
 .hero .gran-titulo {
   font-size: 3.2rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.05;
-  color: $texto; margin-bottom: 1rem;
+  color: #FFFFFF; margin-bottom: 1rem;
 }
-.hero .gran-titulo span { color: $acentoclaro; }
-.hero .lema { font-size: 1.35rem; color: $texto; font-weight: 500; margin-bottom: 0.7rem; }
-.hero .texto { font-size: 0.98rem; color: $texto2; line-height: 1.6; }
+.hero .gran-titulo span { color: #8DB4F7; }
+.hero .lema { font-size: 1.35rem; color: #FFFFFF; font-weight: 500; margin-bottom: 0.7rem; }
+.hero .texto { font-size: 0.98rem; color: #C9D3E3; line-height: 1.6; }
 .hero .creditos-foto {
-  position: absolute; right: 1rem; bottom: 0.7rem; font-size: 0.68rem; color: $texto3;
+  position: absolute; right: 1rem; bottom: 0.7rem; font-size: 0.68rem; color: #8B97AA;
   max-width: none;
 }
 
@@ -149,8 +155,8 @@ a { color: $acentoclaro; }
 .estado::before {
   content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
 }
-.estado.ok { color: #4ADE80; }
-.estado.espera { color: #FACC15; }
+.estado.ok { color: #16A34A; }
+.estado.espera { color: #CA8A04; }
 
 /* Títulos de sección numerados */
 .seccion {
@@ -296,7 +302,7 @@ button[data-baseweb="tab"][aria-selected="true"] p { color: $acentoclaro; font-w
 .insignia {
   display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem;
   padding: 0.12rem 0.55rem; border-radius: 999px; white-space: nowrap;
-  border: 1px solid currentColor; background: rgba(255,255,255,0.03);
+  border: 1px solid currentColor; background: #FFFFFF;
 }
 .insignia::before {
   content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor;

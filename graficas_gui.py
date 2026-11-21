@@ -27,43 +27,43 @@ from geometria import contorno_exterior, muestrear
 from graficas import NOMBRES_REGIMEN, _series
 
 # ---------------------------------------------------------------------
-# Paleta de la interfaz: grafito neutro con azul rey como único acento
+# Paleta de la interfaz: fondo blanco con azul profundo como único acento
 # ---------------------------------------------------------------------
 
-FONDO = "#0C0E13"        # fondo de la página
-PANEL = "#13161D"        # tarjetas, gráficas y controles
-PANEL_2 = "#1B1F28"      # encabezados de tabla, hover
-BORDE = "#272C37"        # bordes finos
-REJILLA = "#1D212A"      # rejilla de las gráficas
-EJES = "#3B4251"         # ejes
-TEXTO = "#E6E8EC"        # texto principal
-TEXTO_2 = "#A2A8B4"      # texto secundario y líneas de referencia
-TEXTO_3 = "#6F7684"      # notas
-ACENTO = "#1F5BD6"       # azul profundo (sin tono morado): modelo 1D y elementos activos
-ACENTO_CLARO = "#6FA3F2" # el mismo azul aclarado, para texto pequeño sobre fondo oscuro
-TEAL = "#2BB3A3"         # diferencia / error
-COLOR_SW = "#F2A93B"     # datos de SolidWorks (ámbar, contrasta con el azul)
-COLOR_ERROR = "#EF6461"  # zona de error entre las dos curvas
-PARED = "#272C37"        # pared de la tobera
+FONDO = "#FFFFFF"        # fondo de la página
+PANEL = "#FFFFFF"        # tarjetas, gráficas y controles (se distinguen por el borde)
+PANEL_2 = "#F3F5F8"      # encabezados de tabla, hover
+BORDE = "#DCE1E8"        # bordes finos
+REJILLA = "#EEF1F5"      # rejilla de las gráficas
+EJES = "#9AA3AF"         # ejes
+TEXTO = "#111827"        # texto principal
+TEXTO_2 = "#4B5563"      # texto secundario y líneas de referencia
+TEXTO_3 = "#6B7280"      # notas
+ACENTO = "#1F5BD6"       # azul profundo: modelo 1D y elementos activos
+ACENTO_CLARO = "#1A4DB8" # el mismo azul un poco más oscuro, para texto pequeño sobre blanco
+TEAL = "#0F9488"         # diferencia / error
+COLOR_SW = "#D97706"     # datos de SolidWorks (ámbar, contrasta con el azul)
+COLOR_ERROR = "#DC2626"  # zona de error entre las dos curvas
+PARED = "#D5DBE3"        # pared de la tobera
 
 # Paleta categórica (orden fijo); la primera es el azul del modelo y el
 # ámbar se reserva para SolidWorks.
-SERIES = [ACENTO, "#2BB3A3", "#E8C547", "#5FB3F0", "#A3E635", "#94A3B8", "#E6E8EC", "#F08A5D"]
+SERIES = [ACENTO, "#0F9488", "#CA8A04", "#0284C7", "#65A30D", "#64748B", "#111827", "#EA580C"]
 
 # Un color por régimen (tabla de resultados y mapa de regímenes)
 COLOR_REGIMEN = {
-    "subsonico": "#A2A8B4",
-    "estrangulado_subsonico": "#D4D7DD",
-    "choque_interno": "#F08A5D",
-    "choque_en_salida": "#E0604E",
-    "sobreexpandida": "#F2C94C",
-    "adaptada": "#4CC38A",
-    "subexpandida": "#4FA3E8",
+    "subsonico": "#6B7280",
+    "estrangulado_subsonico": "#9CA3AF",
+    "choque_interno": "#EA580C",
+    "choque_en_salida": "#DC2626",
+    "sobreexpandida": "#CA8A04",
+    "adaptada": "#16A34A",
+    "subexpandida": "#0284C7",
 }
 
 COLOR_CODIGO = ACENTO
-FUENTE = dict(family="'IBM Plex Sans', 'Segoe UI', Helvetica, Arial, sans-serif", size=13,
-              color=TEXTO)
+HELVETICA = "'Helvetica Neue', Helvetica, Arial, sans-serif"
+FUENTE = dict(family=HELVETICA, size=13, color=TEXTO)
 ETIQUETA_X = "x [mm]  (garganta en x = 0)"
 
 # Barra de herramientas de las gráficas: sin logo y exportación PNG en alta
@@ -93,7 +93,7 @@ def _estilo(fig, titulo, alto=420):
         title=dict(text=f"<b>{titulo}</b>", x=0.0, xanchor="left", y=0.97, yanchor="top",
                    font=dict(size=14, color=TEXTO)),
         font=FUENTE,
-        template="plotly_dark",
+        template="plotly_white",
         paper_bgcolor=PANEL,
         plot_bgcolor=PANEL,
         height=alto,
@@ -416,7 +416,7 @@ def figura_animacion_choque(x, r, A, p0, T0, g, criticas, n=36):
     escala = 0.9 * M_max / r_mm.max()
     silueta = go.Scatter(x=np.concatenate([x_mm, x_mm[::-1]]),
                          y=np.concatenate([r_mm * escala, np.zeros_like(r_mm)]),
-                         fill="toself", fillcolor=rgba(TEXTO, 0.03), mode="lines",
+                         fill="toself", fillcolor=rgba(TEXTO, 0.04), mode="lines",
                          line=dict(color=EJES, width=1), hoverinfo="skip", name="tobera")
     fig = go.Figure(data=[silueta] + datos)
     marcos = []
@@ -576,7 +576,7 @@ def figura_empalme(comp, nombre, unidad, n_cuadros=40):
         fig.add_trace(t)
     nota = dict(xref="paper", yref="paper", x=0.01, y=0.97, xanchor="left", yanchor="top",
                 showarrow=False, align="left", bgcolor=PANEL_2, bordercolor=BORDE, borderpad=8,
-                font=dict(color=TEXTO, size=12, family="'IBM Plex Mono', monospace"))
+                font=dict(color=TEXTO, size=12, family=HELVETICA))
     fig.frames = [go.Frame(data=cursor(i)[0], traces=[2, 3], name=str(k),
                            layout=dict(annotations=[dict(nota, text=cursor(i)[1])]))
                   for k, i in enumerate(indices)]
@@ -686,7 +686,7 @@ def figura_globales(filas):
                else COLOR_ERROR for e in errores]
     fig = go.Figure(go.Bar(x=errores, y=nombres, orientation="h", marker_color=colores,
                            text=[f"{e:+.2f} %" for e in errores], textposition="outside",
-                           textfont=dict(color=TEXTO, family="'IBM Plex Mono', monospace"),
+                           textfont=dict(color=TEXTO, family=HELVETICA),
                            hovertemplate="%{y}: %{x:+.2f} %<extra></extra>"))
     tope = max(8.0, 1.3 * max(abs(e) for e in errores))
     for limite, alfa in ((5, 0.06), (2, 0.08)):
