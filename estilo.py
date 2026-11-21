@@ -20,7 +20,7 @@ from graficas_gui import (ACENTO, ACENTO_CLARO, BORDE, COLOR_ERROR, COLOR_REGIME
 
 # Colores del veredicto de la validación (clases .insignia.veredicto-*)
 COLOR_VEREDICTO = {"veredicto-excelente": COLOR_REGIMEN["adaptada"],
-                   "veredicto-buena": "#8AA2F2", "veredicto-aceptable": "#F2C94C",
+                   "veredicto-buena": ACENTO_CLARO, "veredicto-aceptable": "#F2C94C",
                    "veredicto-revisar": COLOR_ERROR}
 
 MONO = '"IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace'

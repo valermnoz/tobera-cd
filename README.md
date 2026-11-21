@@ -77,7 +77,7 @@ Al guardar, el caso se escribe en `casos/<nombre>.json`. Si ya existe otro
 caso con ese nombre (distinto del que se abrió), la interfaz pide confirmación
 antes de reemplazarlo.
 
-La interfaz usa un tema grafito con azul rey y la tipografía IBM Plex (`.streamlit/config.toml`); la paleta está en
+La interfaz usa un tema grafito con azul profundo y la tipografía IBM Plex (`.streamlit/config.toml`); la paleta está en
 `graficas_gui.py` y el CSS adicional en `estilo.py`. Los PNG de `graficas.py`
 se quedan con fondo blanco para el reporte. Cada gráfica de la interfaz se
 puede descargar como PNG en alta resolución con el ícono de cámara.

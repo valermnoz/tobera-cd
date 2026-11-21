@@ -1,4 +1,4 @@
-# Tema grafito con azul rey de la interfaz. Los mismos colores están en graficas_gui.py
+# Tema grafito con azul profundo de la interfaz. Los mismos colores están en graficas_gui.py
 # (gráficas Plotly) y estilo.py (CSS adicional).
 
 [client]
@@ -7,7 +7,7 @@ toolbarMode = "minimal"
 
 [theme]
 base = "dark"
-primaryColor = "#4169E1"
+primaryColor = "#1F5BD6"
 backgroundColor = "#0C0E13"
 secondaryBackgroundColor = "#13161D"
 textColor = "#E6E8EC"

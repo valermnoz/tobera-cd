@@ -30,7 +30,7 @@ FONDO_TARJETA = "#F8FAFC"
 
 # Paleta categórica (orden fijo); la primera es el azul del modelo. Los rojos
 # se reservan para SolidWorks.
-SERIES = [AZUL, "#EA580C", TEAL, "#7C3AED", "#CA8A04", "#4F46E5", "#475569", "#65A30D"]
+SERIES = [AZUL, "#EA580C", TEAL, "#0B3D91", "#CA8A04", "#0369A1", "#475569", "#65A30D"]
 
 plt.rcParams.update({
     "font.family": "sans-serif",

@@ -39,8 +39,8 @@ EJES = "#3B4251"         # ejes
 TEXTO = "#E6E8EC"        # texto principal
 TEXTO_2 = "#A2A8B4"      # texto secundario y líneas de referencia
 TEXTO_3 = "#6F7684"      # notas
-ACENTO = "#4169E1"       # azul rey: modelo 1D y elementos activos
-ACENTO_CLARO = "#8AA2F2" # azul rey aclarado para texto pequeño sobre fondo oscuro
+ACENTO = "#1F5BD6"       # azul profundo (sin tono morado): modelo 1D y elementos activos
+ACENTO_CLARO = "#6FA3F2" # el mismo azul aclarado, para texto pequeño sobre fondo oscuro
 TEAL = "#2BB3A3"         # diferencia / error
 COLOR_SW = "#F2A93B"     # datos de SolidWorks (ámbar, contrasta con el azul)
 COLOR_ERROR = "#EF6461"  # zona de error entre las dos curvas
@@ -48,17 +48,17 @@ PARED = "#272C37"        # pared de la tobera
 
 # Paleta categórica (orden fijo); la primera es el azul del modelo y el
 # ámbar se reserva para SolidWorks.
-SERIES = [ACENTO, "#2BB3A3", "#C084FC", "#F472B6", "#A3E635", "#94A3B8", "#E6E8EC", "#38BDF8"]
+SERIES = [ACENTO, "#2BB3A3", "#E8C547", "#5FB3F0", "#A3E635", "#94A3B8", "#E6E8EC", "#F08A5D"]
 
 # Un color por régimen (tabla de resultados y mapa de regímenes)
 COLOR_REGIMEN = {
     "subsonico": "#A2A8B4",
     "estrangulado_subsonico": "#D4D7DD",
-    "choque_interno": "#F472B6",
-    "choque_en_salida": "#E879F9",
+    "choque_interno": "#F08A5D",
+    "choque_en_salida": "#E0604E",
     "sobreexpandida": "#F2C94C",
     "adaptada": "#4CC38A",
-    "subexpandida": "#A78BFA",
+    "subexpandida": "#4FA3E8",
 }
 
 COLOR_CODIGO = ACENTO
@@ -75,13 +75,15 @@ CONFIG = {
 }
 
 
-# Mapa de color tipo arcoíris ("Turbo"), parecido al que usa SolidWorks Flow
-# Simulation en sus gráficas de corte: así las dos imágenes se comparan igual.
-MAPA_CFD = [[i / (len(sequential.Turbo) - 1), c] for i, c in enumerate(sequential.Turbo)]
+# Mapa de color tipo arcoíris, parecido al que usa SolidWorks Flow Simulation en
+# sus gráficas de corte: empieza en azul marino (no en morado como "Turbo") y
+# sigue con los tonos de Turbo hacia el rojo.
+_TONOS_CFD = ["#0A2463", "#1F5BD6"] + sequential.Turbo[3:]
+MAPA_CFD = [[i / (len(_TONOS_CFD) - 1), c] for i, c in enumerate(_TONOS_CFD)]
 
 
 def rgba(color, alfa):
-    """'#4169E1', 0.2 -> 'rgba(65,105,225,0.2)' (para rellenos transparentes)."""
+    """'#1F5BD6', 0.2 -> 'rgba(31,91,214,0.2)' (para rellenos transparentes)."""
     r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
     return f"rgba({r},{g},{b},{alfa})"
 
@@ -614,7 +616,7 @@ def figura_mapa_error(x_modelo_mm, r_modelo_mm, comp, nombre):
     tope = max(5.0, float(np.nanpercentile(err, 98)))
     y = np.linspace(-1.05 * r.max(), 1.05 * r.max(), 140)
     campo = np.where(np.abs(y)[:, None] <= r[None, :], err[None, :], np.nan)
-    escala = [[0, "#1F2A44"], [0.15, ACENTO], [0.45, "#F2C94C"], [1, COLOR_ERROR]]
+    escala = [[0, "#0A2463"], [0.15, ACENTO], [0.45, "#F2C94C"], [1, COLOR_ERROR]]
     fig = go.Figure(go.Heatmap(
         x=x, y=y, z=campo, colorscale=escala, zmin=0, zmax=tope,
         colorbar=dict(title=dict(text="|error| %", font=dict(color=TEXTO_2)), thickness=12,
