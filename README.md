@@ -42,8 +42,8 @@ Interfaz gráfica (se abre en el navegador):
 streamlit run app.py
 ```
 
-La interfaz abre con una pantalla de inicio (botón *Comenzar*). El programa tiene
-tres pestañas:
+La interfaz abre con una pantalla de inicio (botón *Iniciar sesión de diseño*).
+El programa tiene seis pestañas:
 
 1. **Caso**: abrir un `.json` de `casos/` o subir uno, editarlo en el
    formulario (o empezar uno nuevo), guardarlo y simularlo. El perfil de la
@@ -53,8 +53,19 @@ tres pestañas:
    lo largo de la tobera, campo de Mach o presión pintado sobre la tobera (vista
    tipo CFD), mapa de regímenes (empuje contra presión exterior) y
    descarga de `contorno.dxf` y demás archivos.
-3. **Validación SolidWorks** (después de simular): se modela `contorno.dxf` en
+3. **Explorador de choque**: la presión exterior se mueve con un deslizador y la
+   solución (régimen, choque, empuje, campo de Mach) se recalcula al instante;
+   incluye una animación del choque recorriendo la divergente y avisos de
+   desprendimiento (criterio de Summerfield).
+4. **Análisis dimensional** (objetivo 5): C_F = f(γ, Ae/A*, pb/p0) por el
+   teorema Π, curvas de C_F, prueba de semejanza con toberas de distinto
+   tamaño, T0 y p0, número de Reynolds en la garganta y efecto de γ.
+5. **Comparar casos**: dos casos lado a lado (hoja de datos, perfiles, Mach y C_F).
+6. **Validación SolidWorks** (después de simular): se modela `contorno.dxf` en
    SolidWorks, se corre Flow Simulation y se sube el `.csv` para compararlo.
+
+En Resultados, el botón *Reporte PDF* genera un reporte técnico del caso con la
+hoja de datos y las figuras.
 
 Al guardar, el caso se escribe en `casos/<nombre>.json`. Si ya existe otro
 caso con ese nombre (distinto del que se abrió), la interfaz pide confirmación

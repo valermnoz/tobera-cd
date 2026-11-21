@@ -8,9 +8,12 @@ pantalla de inicio (clases .hero, .cifras, .tarjetas, .pasos). Los colores salen
 graficas_gui.py para que la interfaz y las gráficas usen la misma paleta.
 """
 
+from html import escape
 from string import Template
 
 import streamlit as st
+
+from main import NOMBRES_REGIMEN
 
 from graficas_gui import (ACENTO, BORDE, COLOR_REGIMEN, EJES, FONDO, PANEL, PANEL_2, REJILLA,
                           TEXTO, TEXTO_2, TEXTO_3, rgba)
@@ -33,11 +36,11 @@ a { color: $acento; }
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   flex-wrap: wrap; padding: 0.9rem 1.2rem; margin-bottom: 1rem;
   background: linear-gradient(110deg, $acento10, transparent 55%), $panel;
-  border: 1px solid $borde; border-radius: 8px;
+  border: 1px solid $borde; border-radius: 4px;
 }
 .encabezado .marca { display: flex; align-items: center; gap: 0.9rem; }
 .encabezado .logo {
-  width: 42px; height: 42px; border-radius: 8px; flex: none;
+  width: 42px; height: 42px; border-radius: 4px; flex: none;
   display: grid; place-items: center;
   background: $acento10; border: 1px solid $acento35;
 }
@@ -53,7 +56,7 @@ a { color: $acento; }
 
 /* Pantalla de inicio */
 .hero {
-  position: relative; overflow: hidden; border: 1px solid $borde; border-radius: 14px;
+  position: relative; overflow: hidden; border: 1px solid $borde; border-radius: 6px;
   padding: 4.2rem 3rem 3.6rem 3rem; margin-bottom: 1.2rem; min-height: 360px;
   background:
     linear-gradient(90deg, $fondo 0%, $fondo 38%, rgba(9,9,11,0.55) 70%, rgba(9,9,11,0.2) 100%),
@@ -69,7 +72,7 @@ a { color: $acento; }
   font-weight: 600; margin-bottom: 0.9rem;
 }
 .hero .gran-titulo {
-  font-size: 4.2rem; font-weight: 800; letter-spacing: -0.04em; line-height: 0.95;
+  font-size: 3.6rem; font-weight: 800; letter-spacing: -0.04em; line-height: 0.95;
   color: $texto; margin-bottom: 1rem;
 }
 .hero .gran-titulo span { color: $acento; }
@@ -85,14 +88,14 @@ a { color: $acento; }
   font-weight: 600; margin: 2.4rem 0 0.9rem 0;
 }
 .cifras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem; }
-.cifra { border: 1px solid $borde; border-radius: 10px; padding: 1rem 1.1rem; background: $panel; }
+.cifra { border: 1px solid $borde; border-radius: 4px; padding: 1rem 1.1rem; background: $panel; }
 .cifra .valor { font-family: $mono; font-size: 1.7rem; font-weight: 600; color: $texto; }
 .cifra .valor span { color: $acento; }
 .cifra .etiqueta { font-size: 0.82rem; color: $texto2; margin-top: 0.2rem; }
 
 .tarjetas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
 .tarjeta {
-  border: 1px solid $borde; border-radius: 10px; padding: 1.2rem 1.2rem 1.1rem 1.2rem;
+  border: 1px solid $borde; border-radius: 4px; padding: 1.2rem 1.2rem 1.1rem 1.2rem;
   background: $panel; transition: border-color 0.15s, transform 0.15s;
 }
 .tarjeta:hover { border-color: $acento35; transform: translateY(-2px); }
@@ -100,7 +103,7 @@ a { color: $acento; }
 .tarjeta .nombre { font-size: 1.02rem; font-weight: 600; color: $texto; margin-bottom: 0.35rem; }
 .tarjeta .desc { font-size: 0.86rem; color: $texto2; line-height: 1.5; }
 
-.pasos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
+.pasos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem; }
 .paso { border-left: 2px solid $acento; padding: 0.3rem 0 0.3rem 1rem; }
 .paso .nombre { font-weight: 600; color: $texto; }
 .paso .desc { font-size: 0.86rem; color: $texto2; }
@@ -117,6 +120,91 @@ a { color: $acento; }
   .hero .gran-titulo { font-size: 2.8rem; }
 }
 
+/* Barra de navegación de la portada */
+.nav {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  padding: 0 0 1rem 0; margin-bottom: 1rem; border-bottom: 1px solid $borde;
+}
+.nav .marca { display: flex; align-items: center; gap: 0.7rem; }
+.nav .logo {
+  width: 36px; height: 36px; border-radius: 4px; display: grid; place-items: center;
+  background: $acento10; border: 1px solid $acento35;
+}
+.nav .titulo { font-size: 1.1rem; font-weight: 700; color: $texto; letter-spacing: 0.02em; }
+.nav .titulo span { color: $acento; }
+.nav-der { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+.nav-der span {
+  font-family: $mono; font-size: 0.72rem; color: $texto3; text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Barra de estado del programa */
+.barra-estado {
+  display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  font-family: $mono; font-size: 0.68rem; letter-spacing: 0.12em; color: $texto3;
+  text-transform: uppercase; padding: 0 0.2rem 0.55rem 0.2rem;
+}
+.estado { display: inline-flex; align-items: center; gap: 0.5rem; }
+.estado::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+  box-shadow: 0 0 0 0 currentColor; animation: latido 2s infinite;
+}
+.estado.ok { color: #4ADE80; }
+.estado.espera { color: #FACC15; }
+@keyframes latido {
+  0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.25); }
+  70% { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
+
+/* Títulos de sección numerados */
+.seccion {
+  display: flex; align-items: baseline; gap: 0.8rem; margin: 2rem 0 0.35rem 0;
+  padding-bottom: 0.5rem; border-bottom: 1px solid $borde;
+}
+.seccion-num { font-family: $mono; font-size: 0.78rem; color: $acento; font-weight: 600; }
+.seccion-texto {
+  font-size: 0.86rem; font-weight: 600; color: $texto; text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.seccion-nota { font-size: 0.84rem; color: $texto3; margin: 0.2rem 0 0.8rem 0; }
+
+/* Lecturas tipo consola (telemetría) */
+.telemetria {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  border: 1px solid $borde; border-radius: 4px; background: $panel; margin: 0.6rem 0 0.8rem 0;
+}
+.lectura { padding: 0.8rem 1rem; border-right: 1px solid $borde; position: relative; }
+.lectura:last-child { border-right: none; }
+.lectura::before {
+  content: ""; position: absolute; left: 0; top: 0; width: 10px; height: 1px;
+  background: $acento;
+}
+.lectura-etq {
+  font-family: $mono; font-size: 0.64rem; color: $texto3; text-transform: uppercase;
+  letter-spacing: 0.12em; margin-bottom: 0.35rem;
+}
+.lectura-val { font-family: $mono; font-size: 1.25rem; font-weight: 600; color: $texto; }
+.lectura-val span { font-size: 0.75rem; color: $texto2; font-weight: 400; }
+
+/* Hoja de especificaciones */
+.especificaciones {
+  display: grid; grid-template-columns: repeat(2, 1fr); border: 1px solid $borde;
+  border-radius: 4px; background: $panel;
+}
+.espec { display: flex; gap: 1rem; padding: 0.75rem 1rem; border-bottom: 1px solid $rejilla; }
+.espec:nth-child(odd) { border-right: 1px solid $rejilla; }
+.espec:nth-last-child(-n+2) { border-bottom: none; }
+.espec-etq {
+  flex: 0 0 120px; font-family: $mono; font-size: 0.68rem; color: $texto3;
+  text-transform: uppercase; letter-spacing: 0.1em; padding-top: 0.15rem;
+}
+.espec-val { font-size: 0.88rem; color: $texto; }
+@media (max-width: 900px) {
+  .especificaciones { grid-template-columns: 1fr; }
+  .espec:nth-child(odd) { border-right: none; }
+}
+
 /* Barra lateral */
 [data-testid="stSidebar"] { border-right: 1px solid $borde; }
 [data-testid="stSidebar"] h3 {
@@ -127,11 +215,12 @@ a { color: $acento; }
 
 /* Tarjetas de métricas (KPIs) */
 [data-testid="stMetric"] {
-  background: $panel; border: 1px solid $borde; border-radius: 8px;
-  padding: 0.75rem 1rem; border-top: 2px solid $acento;
+  background: $panel; border: 1px solid $borde; border-radius: 4px;
+  padding: 0.75rem 1rem; border-top: 1px solid $acento;
 }
 [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p {
-  color: $texto2; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: $texto3; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.12em;
+  font-family: $mono;
 }
 [data-testid="stMetricValue"], [data-testid="stMetricValue"] * {
   font-family: $mono !important; font-weight: 600; color: $texto;
@@ -158,7 +247,7 @@ div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-w
 /* Pestañas */
 [data-baseweb="tab-list"] { gap: 0.25rem; border-bottom: 1px solid $borde; }
 button[data-baseweb="tab"] {
-  background: transparent; border: none; border-radius: 6px 6px 0 0;
+  background: transparent; border: none; border-radius: 3px 3px 0 0;
   padding: 0.55rem 1.1rem; height: auto;
 }
 button[data-baseweb="tab"]:hover { background: $panel; }
@@ -179,18 +268,18 @@ button[data-baseweb="tab"][aria-selected="true"] p { color: $acento; font-weight
 
 /* Desplegables, cargadores de archivos y avisos */
 [data-testid="stExpander"] details {
-  border: 1px solid $borde; border-radius: 8px; background: $panel;
+  border: 1px solid $borde; border-radius: 4px; background: $panel;
 }
 [data-testid="stFileUploaderDropzone"] {
-  border: 1px dashed $ejes; border-radius: 8px; background: $panel;
+  border: 1px dashed $ejes; border-radius: 4px; background: $panel;
 }
-[data-testid="stAlert"] { border-radius: 8px; }
+[data-testid="stAlert"] { border-radius: 4px; }
 
 /* Tablas de datos */
 .tabla-datos { overflow-x: auto; margin-bottom: 1rem; }
 .tabla-datos table {
   width: 100%; border-collapse: separate; border-spacing: 0;
-  border: 1px solid $borde; border-radius: 8px; overflow: hidden; background: $panel;
+  border: 1px solid $borde; border-radius: 4px; overflow: hidden; background: $panel;
 }
 .tabla-datos th {
   background: $panel2; color: $texto2; font-size: 0.72rem; font-weight: 600;
@@ -220,7 +309,7 @@ $insignias
 
 /* Gráficas y fotografías */
 [data-testid="stPlotlyChart"] {
-  border: 1px solid $borde; border-radius: 8px; padding: 0.3rem; background: $panel;
+  border: 1px solid $borde; border-radius: 4px; padding: 0.3rem; background: $panel;
   overflow: hidden;
 }
 [data-testid="stImage"] img { border-radius: 6px; border: 1px solid $borde; }
@@ -246,3 +335,48 @@ def ocultar_barra_lateral():
     st.markdown("<style>[data-testid='stSidebar'], [data-testid='stSidebarCollapsedControl'],"
                 "[data-testid='stExpandSidebarButton'] { display: none; }</style>",
                 unsafe_allow_html=True)
+
+
+def titulo_seccion(numero, texto, nota=None):
+    """Encabezado de sección numerado, estilo hoja técnica: '01  ANÁLISIS ...'."""
+    nota_html = f'<div class="seccion-nota">{escape(nota)}</div>' if nota else ""
+    st.markdown(f'<div class="seccion"><span class="seccion-num">{escape(numero)}</span>'
+                f'<span class="seccion-texto">{escape(texto)}</span></div>{nota_html}',
+                unsafe_allow_html=True)
+
+
+def insignia(clave, texto):
+    """Etiqueta de color para un régimen (clave de tobera.regimen)."""
+    return f'<span class="insignia {escape(clave)}">{escape(texto)}</span>'
+
+
+def telemetria(valores):
+    """Fila de lecturas tipo consola: [(etiqueta, valor, unidad)]."""
+    celdas = "".join(f'<div class="lectura"><div class="lectura-etq">{escape(e)}</div>'
+                     f'<div class="lectura-val">{v}<span>{escape(u)}</span></div></div>'
+                     for e, v, u in valores)
+    st.markdown(f'<div class="telemetria">{celdas}</div>', unsafe_allow_html=True)
+
+
+# Texto del régimen (como sale en resumen.txt) -> clave, para colorear las insignias
+_CLAVE_REGIMEN = {texto: clave for clave, texto in NOMBRES_REGIMEN.items()}
+
+
+def mostrar_tabla(df, derecha=(), insignia=None):
+    """
+    Tabla de datos en HTML (clase tabla-datos, ver estilo.py). Las columnas de
+    'derecha' son numéricas: van alineadas a la derecha y en fuente monoespaciada.
+    La columna 'insignia' (el régimen) se dibuja como etiqueta de color.
+    """
+    def celda(etiqueta, valor, columna):
+        clase = "num" if columna in derecha else "txt"
+        texto = escape(str(valor))
+        if etiqueta == "td" and columna == insignia:
+            texto = f'<span class="insignia {_CLAVE_REGIMEN.get(valor, "")}">{texto}</span>'
+        return f'<{etiqueta} class="{clase}">{texto}</{etiqueta}>'
+
+    cabecera = "".join(celda("th", c, c) for c in df.columns)
+    filas = "".join("<tr>" + "".join(celda("td", v, c) for c, v in fila.items()) + "</tr>"
+                    for _, fila in df.iterrows())
+    st.markdown(f'<div class="tabla-datos"><table><thead><tr>{cabecera}</tr></thead>'
+                f"<tbody>{filas}</tbody></table></div>", unsafe_allow_html=True)

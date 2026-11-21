@@ -5,6 +5,9 @@ graficas_gui.py — Gráficas interactivas (Plotly) para la interfaz gráfica.
   figura_distribucion():    p(x) o M(x) para cada presión exterior
   figura_campo():           tobera coloreada con M(x) o p(x), tipo CFD
   figura_mapa_regimenes():  empuje contra presión exterior con los regímenes
+  figura_animacion_choque(): M(x) animado al bajar la presión exterior
+  figura_cf():              C_F contra pb/p0 (análisis dimensional)
+  figura_comparar_perfiles(), figura_comparar_mach(): dos casos superpuestos
   figura_superpuesta():     código contra SolidWorks para una variable
   figura_error():           diferencia absoluta o error porcentual contra x
 
@@ -17,6 +20,8 @@ Longitudes en mm.
 import numpy as np
 import plotly.graph_objects as go
 from plotly.colors import sequential
+
+from tobera import distribucion, estado_salida
 
 from geometria import contorno_exterior, muestrear
 from graficas import NOMBRES_REGIMEN, _series
@@ -368,4 +373,160 @@ def figura_error(comp, nombre, unidad, modo="porcentual"):
     fig.update_layout(showlegend=False)
     fig.update_xaxes(title_text=ETIQUETA_X)
     fig.update_yaxes(title_text=eje)
+    return fig
+
+
+# ---------------------------------------------------------------------
+# Animación del choque
+# ---------------------------------------------------------------------
+
+def figura_animacion_choque(x, r, A, p0, T0, g, criticas, n=36):
+    """
+    M(x) para presiones exteriores que bajan de p1 a p3/2: el choque nace en la
+    garganta, recorre la divergente, sale por el plano de salida y el flujo
+    queda supersónico. Botón ▶ y deslizador con p_b en kPa.
+    """
+    x_mm, r_mm = x * 1e3, r * 1e3
+    # Dos tercios de los cuadros con el choque dentro (entre p1 y p2), el resto
+    # con la tobera ya supersónica (de p2 a p3/2)
+    n_choque = 2 * n // 3
+    pbs = np.concatenate([np.linspace(0.999 * criticas["p1"], criticas["p2"], n_choque),
+                          np.geomspace(0.97 * criticas["p2"], 0.5 * criticas["p3"],
+                                       n - n_choque)])
+    M_max = 1.15 * np.max(distribucion(x, A, pbs[-1], p0, T0, g)["M"])
+
+    def trazas(pb):
+        d = distribucion(x, A, pb, p0, T0, g)
+        reg = estado_salida(pb, p0, T0, 1.0, A[-1] / A.min(), g)["regimen"]
+        xs = [None, None] if d["x_choque"] is None else [d["x_choque"] * 1e3] * 2
+        return [
+            go.Scatter(x=x_mm, y=d["M"], mode="lines", line=dict(color=ACENTO, width=3),
+                       fill="tozeroy", fillcolor=rgba(ACENTO, 0.10), name="M(x)",
+                       hovertemplate="x = %{x:.2f} mm<br>M = %{y:.3f}<extra></extra>"),
+            go.Scatter(x=xs, y=[0, M_max], mode="lines", name="choque",
+                       line=dict(color=TEXTO, width=1.5, dash="dash"), hoverinfo="skip"),
+        ], f"p_b = {pb/1e3:.1f} kPa · {NOMBRES_REGIMEN[reg]}"
+
+    datos, titulo = trazas(pbs[0])
+    # Silueta de la tobera al fondo, escalada al eje de Mach
+    escala = 0.9 * M_max / r_mm.max()
+    silueta = go.Scatter(x=np.concatenate([x_mm, x_mm[::-1]]),
+                         y=np.concatenate([r_mm * escala, np.zeros_like(r_mm)]),
+                         fill="toself", fillcolor=rgba(TEXTO, 0.03), mode="lines",
+                         line=dict(color=EJES, width=1), hoverinfo="skip", name="tobera")
+    fig = go.Figure(data=[silueta] + datos)
+    marcos = []
+    for pb in pbs:
+        tr, tit = trazas(pb)
+        marcos.append(go.Frame(data=tr, traces=[1, 2], name=f"{pb/1e3:.1f}",
+                               layout=dict(title_text=f"<b>Animación del choque</b>  ·  {tit}")))
+    fig.frames = marcos
+    _estilo(fig, "Animación del choque", alto=460)
+    fig.update_layout(title_text=f"<b>Animación del choque</b>  ·  {titulo}")
+    fig.add_hline(y=1, line=dict(color=TEXTO_3, width=1, dash="dot"),
+                  annotation_text="M = 1", annotation_position="bottom left",
+                  annotation_font=dict(color=TEXTO_3, size=11))
+    _linea_garganta(fig)
+    boton = dict(type="buttons", direction="left", x=0, y=-0.19, xanchor="left", yanchor="top",
+                 showactive=False, bgcolor=PANEL_2, bordercolor=BORDE, font=dict(color=TEXTO),
+                 buttons=[
+                     dict(label="▶  Reproducir", method="animate",
+                          args=[None, dict(frame=dict(duration=140, redraw=True),
+                                           transition=dict(duration=0), fromcurrent=True)]),
+                     dict(label="❚❚  Pausa", method="animate",
+                          args=[[None], dict(frame=dict(duration=0), mode="immediate")]),
+                 ])
+    deslizador = dict(active=0, x=0.26, y=-0.13, len=0.74, xanchor="left", yanchor="top",
+                      bgcolor=PANEL_2, bordercolor=BORDE, activebgcolor=ACENTO,
+                      tickcolor=EJES, font=dict(color=TEXTO_3, size=10),
+                      currentvalue=dict(prefix="p_b = ", suffix=" kPa",
+                                        font=dict(color=TEXTO, size=12)),
+                      steps=[dict(label=m.name, method="animate",
+                                  args=[[m.name], dict(frame=dict(duration=0, redraw=True),
+                                                       mode="immediate")]) for m in marcos])
+    fig.update_layout(updatemenus=[boton], sliders=[deslizador], showlegend=False,
+                      hovermode="closest", margin=dict(b=150))
+    fig.update_xaxes(title_text=ETIQUETA_X, showspikes=False)
+    fig.update_yaxes(title_text="Número de Mach M [–]", range=[0, M_max], showspikes=False)
+    return fig
+
+
+# ---------------------------------------------------------------------
+# Análisis dimensional
+# ---------------------------------------------------------------------
+
+def figura_cf(curvas, titulo, etiqueta, resaltar=None, pb_p0_diseno=None,
+              sufijo="  (este caso)"):
+    """
+    C_F contra pb/p0 (eje logarítmico). 'curvas' = {parámetro: (pb/p0, C_F)};
+    'etiqueta' da el nombre de cada curva y 'resaltar' es el parámetro del caso.
+    """
+    fig = go.Figure()
+    for i, (clave, (eje, cf)) in enumerate(curvas.items()):
+        propia = resaltar is not None and np.isclose(clave, resaltar)
+        color = ACENTO if propia else SERIES[1:][i % (len(SERIES) - 1)]
+        fig.add_trace(go.Scatter(
+            x=eje, y=cf, mode="lines", name=etiqueta(clave) + (sufijo if propia else ""),
+            line=dict(color=color, width=3.5 if propia else 1.8),
+            hovertemplate="p_b/p₀ = %{x:.4f}<br>C_F = %{y:.4f}<extra>" + etiqueta(clave) +
+                          "</extra>"))
+    if pb_p0_diseno is not None:
+        fig.add_vline(x=np.log10(pb_p0_diseno), line=dict(color=COLOR_REGIMEN["adaptada"],
+                                                          width=1.2, dash="dot"),
+                      annotation_text=f"diseño  pₐ/p₀ = {pb_p0_diseno:.4f}",
+                      annotation_position="top right",
+                      annotation_font=dict(color=COLOR_REGIMEN["adaptada"], size=11))
+    _estilo(fig, titulo, alto=440)
+    _leyenda_derecha(fig)
+    fig.update_layout(margin=dict(r=220), hovermode="closest")
+    # Rango explícito: en un eje log la línea vertical se ubica con log10 y sin
+    # rango fijo Plotly lo extiende de más
+    x_min = min(float(eje[0]) for eje, _ in curvas.values())
+    fig.update_xaxes(type="log", range=[np.log10(x_min), 0],
+                     title_text="Presión exterior adimensional p_b/p₀  (log)")
+    fig.update_yaxes(title_text="Coeficiente de empuje C_F = F/(p₀A*)", rangemode="tozero")
+    return fig
+
+
+# ---------------------------------------------------------------------
+# Comparación de casos
+# ---------------------------------------------------------------------
+
+COLORES_CASO = (ACENTO, "#E4E4E7")
+
+
+def figura_comparar_perfiles(casos):
+    """Perfil r(x) de dos o más toberas en la misma escala. casos = [(nombre, x, r)]."""
+    fig = go.Figure()
+    for (nombre, x, r), color in zip(casos, COLORES_CASO * 2):
+        for signo, leyenda in ((1, True), (-1, False)):
+            fig.add_trace(go.Scatter(x=x * 1e3, y=signo * r * 1e3, mode="lines", name=nombre,
+                                     legendgroup=nombre, showlegend=leyenda,
+                                     line=dict(color=color, width=2.5),
+                                     hovertemplate="x = %{x:.2f} mm<br>r = %{y:.2f} mm"
+                                                   f"<extra>{nombre}</extra>"))
+    fig.add_hline(y=0, line=dict(color=TEXTO_3, width=1, dash="dashdot"))
+    _linea_garganta(fig)
+    _estilo(fig, "Perfiles a la misma escala", alto=400)
+    fig.update_layout(hovermode="closest",
+                      legend=dict(orientation="h", yanchor="bottom", y=1.04, xanchor="right", x=1))
+    fig.update_xaxes(title_text=ETIQUETA_X)
+    fig.update_yaxes(title_text="r [mm]", scaleanchor="x", scaleratio=1)
+    return fig
+
+
+def figura_comparar_mach(casos):
+    """M contra x/L (posición adimensional) para comparar toberas de distinto tamaño."""
+    fig = go.Figure()
+    for (nombre, x, r, M), color in zip(casos, COLORES_CASO * 2):
+        x_rel = (x - x.min()) / (x.max() - x.min())
+        fig.add_trace(go.Scatter(x=x_rel, y=M, mode="lines", name=nombre,
+                                 line=dict(color=color, width=2.5),
+                                 hovertemplate="x/L = %{x:.3f}<br>M = %{y:.3f}"
+                                               f"<extra>{nombre}</extra>"))
+    fig.add_hline(y=1, line=dict(color=TEXTO_3, width=1, dash="dot"))
+    _estilo(fig, "Número de Mach en la presión de diseño", alto=400)
+    fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.04, xanchor="right", x=1))
+    fig.update_xaxes(title_text="Posición adimensional x/L (0 = entrada, 1 = salida)")
+    fig.update_yaxes(title_text="Número de Mach M [–]")
     return fig

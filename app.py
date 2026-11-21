@@ -5,18 +5,24 @@ Uso:
     streamlit run app.py
 
 Primero se muestra una pantalla de inicio; con "Comenzar" se entra al
-programa, que tiene tres pestañas:
-  Caso          abrir o crear el .json, ver el perfil y simular
-  Resultados    resumen, presión estática y Mach (después de simular)
-  Validación    comparar con el CSV de SolidWorks (después de simular y de
-                correr Flow Simulation sobre el contorno generado)
+programa, que tiene seis pestañas:
+  Caso                  abrir o crear el .json, ver el perfil y simular
+  Resultados            resumen, distribuciones, campo de Mach, mapa de
+                        regímenes y reporte PDF (después de simular)
+  Explorador de choque  p_b con un deslizador y animación del choque
+  Análisis dimensional  C_F, semejanza, Re* y efecto de γ (objetivo 5)
+  Comparar casos        dos casos lado a lado
+  Validación            comparar con el CSV de SolidWorks (después de simular y de
+                        correr Flow Simulation sobre el contorno generado)
 
 Esta capa solo maneja la interfaz. Los cálculos están en configuracion.py,
 main.py y los módulos de cálculo; el resumen se lee con resumen_txt.py, la
-comparación está en comparacion.py y las figuras en graficas_gui.py.
+comparación está en comparacion.py, las figuras en graficas_gui.py, el PDF en
+reporte_pdf.py y las pestañas de análisis en pestanas_analisis.py.
 """
 
 import base64
+from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
@@ -26,15 +32,19 @@ import streamlit as st
 import comparacion as cmp
 import configuracion as cfg
 import estilo
+import pestanas_analisis as analisis
 from geometria import GEOMETRIA_DEFECTO
 from graficas_gui import (ACENTO, CONFIG, figura_campo, figura_distribucion, figura_error,
                           figura_geometria, figura_mapa_regimenes, figura_superpuesta)
 from interactivo import DESCRIPCION_GEOMETRIA
 from main import NOMBRES_REGIMEN
+from reporte_pdf import generar_pdf
 from resumen_txt import parsear_resumen
 from tobera import curva_empuje
 
-st.set_page_config(page_title="TOBERA-CD · Toberas convergente–divergentes", page_icon="🚀",
+VERSION = "2.0"
+
+st.set_page_config(page_title="TOBERA-CD · Suite de diseño de toberas", page_icon="🚀",
                    layout="wide", initial_sidebar_state="expanded")
 estilo.aplicar()
 
@@ -55,8 +65,6 @@ LIMITES_GEOMETRIA = {
     "espesor_pared_mm": (0.01, 100.0, 0.5),
 }
 PAREDES = {"constante": "Espesor constante", "cilindrica": "Tubo recto"}
-# Texto del régimen (como sale en resumen.txt) -> clave, para colorear las insignias
-CLAVE_REGIMEN = {texto: clave for clave, texto in NOMBRES_REGIMEN.items()}
 
 
 def grupo(texto):
@@ -194,6 +202,7 @@ def _sobrescribe_otro_caso(caso):
 
 
 def pestana_caso():
+    estilo.titulo_seccion("01", "Definición del caso")
     opciones = [OPCION_NUEVO] + [str(c) for c in cfg.listar_casos()]
     if st.session_state.get("sel_caso") not in opciones:
         st.session_state["sel_caso"] = OPCION_NUEVO
@@ -245,9 +254,8 @@ def pestana_caso():
     if guardar or simular:
         _guardar_y_simular(caso, simular)
 
-    st.divider()
-    st.subheader("Perfil de la tobera")
-    st.caption("Vista previa: se actualiza al editar el formulario, sin simular.")
+    estilo.titulo_seccion("02", "Perfil de la tobera",
+                          "Vista previa: se actualiza al editar el formulario, sin simular.")
     if caso is None:
         return
     try:
@@ -263,26 +271,6 @@ def pestana_caso():
 # ---------------------------------------------------------------------
 # Pestaña: resultados
 # ---------------------------------------------------------------------
-
-def mostrar_tabla(df, derecha=(), insignia=None):
-    """
-    Tabla de datos en HTML (clase tabla-datos, ver estilo.py). Las columnas de
-    'derecha' son numéricas: van alineadas a la derecha y en fuente monoespaciada.
-    La columna 'insignia' (el régimen) se dibuja como etiqueta de color.
-    """
-    def celda(etiqueta, valor, columna):
-        clase = "num" if columna in derecha else "txt"
-        texto = escape(str(valor))
-        if etiqueta == "td" and columna == insignia:
-            texto = f'<span class="insignia {CLAVE_REGIMEN.get(valor, "")}">{texto}</span>'
-        return f'<{etiqueta} class="{clase}">{texto}</{etiqueta}>'
-
-    cabecera = "".join(celda("th", c, c) for c in df.columns)
-    filas = "".join("<tr>" + "".join(celda("td", v, c) for c, v in fila.items()) + "</tr>"
-                    for _, fila in df.iterrows())
-    st.markdown(f'<div class="tabla-datos"><table><thead><tr>{cabecera}</tr></thead>'
-                f"<tbody>{filas}</tbody></table></div>", unsafe_allow_html=True)
-
 
 KPIS = ("Mach de salida", "Diámetro de garganta", "Diámetro de salida", "Gasto másico",
         "Coeficiente de empuje", "Longitud total")
@@ -306,9 +294,15 @@ def pestana_resultados(resultado):
         st.error(str(e))
         return
 
-    st.subheader(datos["nombre"])
+    t1, t2 = st.columns([4, 1])
+    t1.subheader(datos["nombre"])
     if datos["descripcion"]:
-        st.caption(datos["descripcion"])
+        t1.caption(datos["descripcion"])
+    if "pdf" not in resultado:
+        resultado["pdf"] = generar_pdf(caso, res, resultado["salida"])
+    t2.download_button("⬇  Reporte PDF", resultado["pdf"], type="primary", width="stretch",
+                       file_name=f"reporte_{cfg.nombre_archivo(caso['nombre'])}.pdf",
+                       mime="application/pdf", key=f"pdf_{resultado['id']}")
 
     valores = datos["dimensionamiento"] + datos["geometria"]
     elegidos = [next(v for v in valores if v["nombre"].startswith(k)) for k in KPIS
@@ -318,7 +312,7 @@ def pestana_resultados(resultado):
         for col, v in zip(st.columns(3), elegidos[i:i + 3]):
             col.metric(v["nombre"], f"{v['texto']} {v['unidad']}".strip())
 
-    st.markdown("### Análisis por presión exterior")
+    estilo.titulo_seccion("01", "Análisis por presión exterior")
     def fmt(valor, formato):
         return "–" if valor is None else format(valor, formato)
 
@@ -328,7 +322,7 @@ def pestana_resultados(resultado):
         "Empuje [N]": fmt(a["F_N"], ".2f"),
         "x del choque [mm]": fmt((a["choque"] or {}).get("x_mm"), ".2f"),
     } for a in datos["analisis"]]
-    mostrar_tabla(pd.DataFrame(filas), derecha=["p_b [kPa]", "Me", "Gasto [kg/s]",
+    estilo.mostrar_tabla(pd.DataFrame(filas), derecha=["p_b [kPa]", "Me", "Gasto [kg/s]",
                                                 "Empuje [N]", "x del choque [mm]"],
                   insignia="Régimen")
 
@@ -339,16 +333,16 @@ def pestana_resultados(resultado):
                                        ("geometria", "Geometría"),
                                        ("criticas", "Presiones críticas"))
                  for v in datos[clave]]
-        mostrar_tabla(pd.DataFrame(filas), derecha=["Valor"])
+        estilo.mostrar_tabla(pd.DataFrame(filas), derecha=["Valor"])
 
-    st.markdown("### Distribuciones a lo largo de la tobera")
+    estilo.titulo_seccion("02", "Distribuciones a lo largo de la tobera")
     st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "p", res["criticas"]),
                     theme=None, config=CONFIG)
     st.plotly_chart(figura_distribucion(res["x"], res["distribuciones"], "M"), theme=None, config=CONFIG)
 
-    st.markdown("### Campo sobre la tobera")
-    st.caption("Misma solución cuasi-1D pintada sobre la geometría real, como se ve en Flow "
-               "Simulation. Útil para comparar visualmente con el CFD.")
+    estilo.titulo_seccion("03", "Campo sobre la tobera",
+                          "Misma solución cuasi-1D pintada sobre la geometría real, como se ve "
+                          "en Flow Simulation. Útil para comparar visualmente con el CFD.")
     dist = res["distribuciones"]
     i_diseno = next((i for i, d in enumerate(dist) if d["pb"] == caso["pa_Pa"]), 0)
     c1, c2 = st.columns([4, 1])
@@ -361,17 +355,17 @@ def pestana_resultados(resultado):
                                  "M" if variable == "Mach" else "p", caso["camara"]["p0_Pa"]),
                     theme=None, config=CONFIG)
 
-    st.markdown("### Mapa de regímenes")
-    st.caption("Empuje de esta tobera para cualquier presión exterior. Las bandas son los "
-               "regímenes que separan p₁, p₂ y p₃; los puntos son las presiones analizadas.")
+    estilo.titulo_seccion("04", "Mapa de regímenes",
+                          "Empuje de esta tobera para cualquier presión exterior. Las bandas son "
+                          "los regímenes que separan p₁, p₂ y p₃; los puntos son las presiones "
+                          "analizadas.")
     d = res["diseno"]
     curva = curva_empuje(caso["camara"]["p0_Pa"], caso["camara"]["T0_K"], d["At"], d["Ae_At"],
                          caso["gas"]["gamma"], caso["gas"]["R"])
     st.plotly_chart(figura_mapa_regimenes(curva, res["criticas"], caso["camara"]["p0_Pa"],
                                           caso["pa_Pa"], res["analisis"]), theme=None, config=CONFIG)
 
-    st.markdown("### Archivos")
-    st.caption(f"Guardados en {resultado['salida']}/")
+    estilo.titulo_seccion("05", "Archivos", f"Guardados en {resultado['salida']}/")
     cols = st.columns(4)
     _boton_archivo(resultado, "resumen.txt", "text/plain", "Descargar resumen.txt", cols[0])
     _boton_archivo(resultado, "distribucion.csv", "text/csv", "Descargar distribucion.csv", cols[1])
@@ -526,30 +520,38 @@ LOGO = (
 # Pantalla de inicio
 # ---------------------------------------------------------------------
 
-CIFRAS = (
-    ("1<span>D</span>", "Flujo cuasi-unidimensional e isentrópico"),
-    ("7", "Regímenes de operación clasificados"),
-    ("3", "Presiones críticas p₁, p₂, p₃ y choque normal"),
-    ("DXF", "Contorno listo para SolidWorks"),
-)
-TARJETAS = (
+MODULOS = (
     ("Dimensionamiento", "Garganta y salida para expansión ideal a partir del empuje "
-                         "requerido, la cámara y la altitud."),
-    ("Regímenes", "Presiones críticas p₁, p₂ y p₃ y clasificación del flujo para cualquier "
-                  "presión exterior."),
-    ("Choque normal", "Posición del choque dentro de la divergente y estado aguas abajo "
-                      "con p₀₂/p₀₁."),
-    ("Empuje y C_F", "Balance de cantidad de movimiento en un volumen de control: "
-                     "F = ṁVₑ + (pₑ − p_b)Aₑ."),
-    ("Geometría real", "Contorno cónico con garganta redondeada y M(x), p(x), T(x) sobre "
-                       "esa geometría."),
-    ("Validación CFD", "Comparación contra Flow Simulation: RMSE, error máximo y "
-                       "cobertura a lo largo del eje."),
+                         "requerido, la cámara y la altitud de operación."),
+    ("Regímenes y choque", "Presiones críticas p₁, p₂, p₃, clasificación del flujo y "
+                           "posición del choque normal en la divergente."),
+    ("Campo tipo CFD", "M(x) y p(x) sobre la geometría real con garganta redondeada, "
+                       "listos para comparar con Flow Simulation."),
+    ("Explorador de choque", "Presión exterior en vivo y animación del choque recorriendo "
+                             "la tobera."),
+    ("Análisis dimensional", "Teorema Π: C_F = f(γ, Aₑ/A*, p_b/p₀), prueba de semejanza, "
+                             "Re* y efecto de γ."),
+    ("Mapa de empuje", "F y C_F para cualquier presión exterior, con los regímenes "
+                       "sombreados."),
+    ("Comparación de casos", "Dos diseños lado a lado: hoja de datos, perfiles, Mach y C_F."),
+    ("Exportación CAD", "Contorno DXF, puntos XYZ y ecuaciones para SolidWorks."),
+    ("Reporte técnico", "PDF con la hoja de datos y las figuras del caso en un clic."),
 )
-PASOS = (
-    ("Define el caso", "Gas, cámara, ambiente y empuje requerido."),
-    ("Simula", "Dimensiones, regímenes, distribuciones y mapa de empuje."),
-    ("Valida", "Sube el .csv de SolidWorks y mide el error teoría–CFD."),
+ESPECIFICACIONES = (
+    ("Modelo de flujo", "Cuasi-1D, permanente, adiabático; isentrópico salvo el choque normal"),
+    ("Gas", "Ideal calóricamente perfecto · 1 < γ ≤ 1.67 · R configurable"),
+    ("Cámara", "p₀ de 10 kPa a 100 MPa · T₀ hasta 5000 K"),
+    ("Ambiente", "Atmósfera estándar hasta 11 km o presión directa"),
+    ("Geometría", "Cónica de 6 tramos tangentes · garganta redondeada · pared exterior"),
+    ("Salidas", "DXF · XYZ · CSV · JSON · PNG · PDF"),
+    ("Validación", "CSV de SolidWorks Flow Simulation · RMSE, error máximo, cobertura"),
+    ("Verificación", "Más de 100 pruebas automáticas contra tablas y el caso a mano"),
+)
+FLUJO = (
+    ("Definir", "Gas, cámara, ambiente y empuje requerido."),
+    ("Simular", "Dimensiones, regímenes, distribuciones y mapa de empuje."),
+    ("Analizar", "Explorador de choque, análisis dimensional y comparación."),
+    ("Validar", "Sube el .csv de SolidWorks y mide el error teoría–CFD."),
 )
 
 
@@ -559,41 +561,64 @@ def _foto_base64(nombre):
     return base64.b64encode(ruta.read_bytes()).decode() if ruta.exists() else ""
 
 
+@st.cache_data(show_spinner=False)
+def _caso_referencia():
+    """Lecturas del caso preliminar para la franja de telemetría de la portada."""
+    from analisis_dimensional import reynolds_garganta
+    from main import completar_caso, correr, leer_caso
+    ruta = cfg.DIR_CASOS / "caso_preliminar.json"
+    if not ruta.exists():
+        return None
+    caso = completar_caso(leer_caso(ruta))
+    d = correr(caso)["diseno"]
+    re = reynolds_garganta(caso["camara"]["p0_Pa"], caso["camara"]["T0_K"], d["Dt"])["Re"]
+    return [("Mach de salida", f"{d['Me']:.3f}", ""), ("Aₑ/A*", f"{d['Ae_At']:.3f}", ""),
+            ("D*", f"{d['Dt']*1e3:.2f}", " mm"), ("Gasto", f"{d['m']:.4f}", " kg/s"),
+            ("C_F", f"{d['CF']:.4f}", ""), ("Re*", f"{re/1e6:.2f}", " × 10⁶")]
+
+
 def _entrar():
     st.session_state["en_programa"] = True
 
 
 def pantalla_inicio():
-    """Portada del proyecto. El programa se abre con el botón Comenzar."""
+    """Portada del producto. El programa se abre con el botón de inicio."""
     estilo.ocultar_barra_lateral()
+    st.markdown(
+        f'<div class="nav"><div class="marca"><div class="logo">{LOGO}</div>'
+        '<div class="titulo">TOBERA<span>-CD</span></div></div>'
+        f'<div class="nav-der"><span>v{VERSION}</span><span>Núcleo cuasi-1D</span>'
+        '<span>ENES Juriquilla · UNAM</span></div></div>',
+        unsafe_allow_html=True,
+    )
     foto = _foto_base64(IMAGENES[0][0])
     fondo = f"url(data:image/jpeg;base64,{foto})" if foto else "none"
     st.markdown(
         f'<div class="hero" style="--foto: {fondo};">'
-        '<div class="antetitulo">Mecánica de Fluidos · Ingeniería Aeroespacial · UNAM</div>'
-        '<div class="gran-titulo">TOBERA<span>-CD</span></div>'
-        '<div class="lema">Diseño, análisis y validación de toberas convergente–divergentes.</div>'
-        '<div class="texto">A partir del empuje requerido, las condiciones de cámara y la '
-        'altitud, la herramienta dimensiona la tobera, predice su régimen de operación para '
-        'cualquier presión exterior, localiza el choque normal y genera el contorno para '
-        'validarlo en SolidWorks Flow Simulation.</div>'
+        '<div class="antetitulo">Suite de ingeniería de propulsión</div>'
+        '<div class="gran-titulo">Diseño de toberas<br><span>de grado aeroespacial.</span></div>'
+        '<div class="texto">Dimensiona toberas convergente–divergentes a partir del empuje '
+        'requerido, predice su régimen de operación para cualquier presión exterior, localiza '
+        'el choque normal y valida el diseño contra CFD. Del requisito al archivo de CAD en '
+        'una sola sesión.</div>'
         f'<div class="creditos-foto">{escape(IMAGENES[0][1])}</div></div>',
         unsafe_allow_html=True,
     )
-    c1, _ = st.columns([1, 5])
-    c1.button("Comenzar  →", type="primary", on_click=_entrar, width="stretch",
-              key="comenzar")
+    c1, _ = st.columns([1.3, 4])
+    c1.button("Iniciar sesión de diseño  →", type="primary", on_click=_entrar,
+              width="stretch", key="comenzar")
 
-    st.markdown('<div class="seccion-inicio">En números</div><div class="cifras">' +
-                "".join(f'<div class="cifra"><div class="valor">{v}</div>'
-                        f'<div class="etiqueta">{escape(e)}</div></div>' for v, e in CIFRAS) +
-                "</div>", unsafe_allow_html=True)
+    lecturas = _caso_referencia()
+    if lecturas:
+        st.markdown('<div class="seccion-inicio">Telemetría · caso de referencia · aire · '
+                    '1 MPa · 300 K · 100 N · 1820 m</div>', unsafe_allow_html=True)
+        estilo.telemetria(lecturas)
 
-    st.markdown('<div class="seccion-inicio">Qué hace</div><div class="tarjetas">' +
+    st.markdown('<div class="seccion-inicio">Módulos</div><div class="tarjetas">' +
                 "".join(f'<div class="tarjeta"><div class="num">{i:02d}</div>'
                         f'<div class="nombre">{escape(n)}</div>'
                         f'<div class="desc">{escape(d)}</div></div>'
-                        for i, (n, d) in enumerate(TARJETAS, 1)) +
+                        for i, (n, d) in enumerate(MODULOS, 1)) +
                 "</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="seccion-inicio">Modelo físico</div>', unsafe_allow_html=True)
@@ -609,15 +634,22 @@ def pantalla_inicio():
         st.latex(r"F=\dot m\,V_e+(p_e-p_b)\,A_e")
         st.caption("Empuje por volumen de control")
 
-    st.markdown('<div class="seccion-inicio">Cómo se usa</div><div class="pasos">' +
-                "".join(f'<div class="paso"><div class="nombre">{i}. {escape(n)}</div>'
+    st.markdown('<div class="seccion-inicio">Especificaciones técnicas</div>'
+                '<div class="especificaciones">' +
+                "".join(f'<div class="espec"><div class="espec-etq">{escape(e)}</div>'
+                        f'<div class="espec-val">{escape(v)}</div></div>'
+                        for e, v in ESPECIFICACIONES) +
+                "</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="seccion-inicio">Flujo de trabajo</div><div class="pasos">' +
+                "".join(f'<div class="paso"><div class="nombre">{i:02d} · {escape(n)}</div>'
                         f'<div class="desc">{escape(d)}</div></div>'
-                        for i, (n, d) in enumerate(PASOS, 1)) +
+                        for i, (n, d) in enumerate(FLUJO, 1)) +
                 "</div>", unsafe_allow_html=True)
 
     st.markdown(f'<div class="pie-inicio"><span>{EQUIPO}</span>'
-                '<span>ENES Juriquilla · UNAM · Fotos: NASA (dominio público)</span></div>',
-                unsafe_allow_html=True)
+                '<span>Proyecto final de Mecánica de Fluidos · ENES Juriquilla · UNAM · '
+                'Fotos: NASA (dominio público)</span></div>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------
@@ -632,10 +664,15 @@ def encabezado():
              ("F", f"{ss.get('f_F_N', 0):.4g} N")]
     html_chips = "".join(f'<span class="chip">{escape(k)} <b>{escape(str(v))}</b></span>'
                          for k, v in chips)
+    listo = ss.get("resultado") is not None
+    estado = ("ok", "SOLUCIÓN CONVERGIDA") if listo else ("espera", "EN ESPERA DE SIMULACIÓN")
+    hora = datetime.now(timezone.utc).strftime("%Y-%m-%d · %H:%M UTC")
     st.markdown(
+        f'<div class="barra-estado"><span class="estado {estado[0]}">{estado[1]}</span>'
+        f'<span>TOBERA-CD v{VERSION} · NÚCLEO CUASI-1D</span><span>{hora}</span></div>'
         f'<div class="encabezado"><div class="marca"><div class="logo">{LOGO}</div><div>'
         '<div class="titulo">TOBERA<span>-CD</span></div>'
-        '<div class="subtitulo">Diseño, análisis y validación de toberas '
+        '<div class="subtitulo">Suite de diseño, análisis y validación de toberas '
         'convergente–divergentes</div></div></div>'
         f'<div class="chips">{html_chips}</div></div>',
         unsafe_allow_html=True,
@@ -676,6 +713,10 @@ def barra_lateral():
         st.caption(EQUIPO)
 
 
+PESTANAS = ["Caso", "Resultados", "Explorador de choque", "Análisis dimensional",
+            "Comparar casos", "Validación SolidWorks"]
+
+
 def main():
     if not st.session_state.get("en_programa"):
         pantalla_inicio()
@@ -689,13 +730,19 @@ def main():
 
     barra_lateral()
     encabezado()
-    tab_caso, tab_res, tab_val = st.tabs(["Caso", "Resultados", "Validación SolidWorks"])
+    pestanas = st.tabs(PESTANAS)
     resultado = st.session_state.get("resultado")
-    with tab_caso:
+    with pestanas[0]:
         pestana_caso()
-    with tab_res:
+    with pestanas[1]:
         pestana_resultados(resultado)
-    with tab_val:
+    with pestanas[2]:
+        analisis.pestana_explorador(resultado)
+    with pestanas[3]:
+        analisis.pestana_dimensional(resultado)
+    with pestanas[4]:
+        analisis.pestana_comparar(resultado)
+    with pestanas[5]:
         pestana_validacion(resultado)
 
 
