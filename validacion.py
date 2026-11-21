@@ -50,16 +50,15 @@ def _leer_datos(resultado):
         st.session_state.pop("val_ejemplo", None)
         return archivo.getvalue(), f"{archivo.name}_{archivo.size}", False
 
-    c1, c2 = st.columns([1.4, 4])
     if st.session_state.get("val_ejemplo"):
-        if c1.button("Quitar datos de ejemplo", width="stretch"):
+        if st.button("Quitar datos de ejemplo"):
             st.session_state.pop("val_ejemplo")
             st.rerun()
-    elif c1.button("Probar con datos de ejemplo", width="stretch"):
+    elif st.button("Probar con datos de ejemplo"):
         st.session_state["val_ejemplo"] = True
         st.rerun()
     if not st.session_state.get("val_ejemplo"):
-        c2.caption("¿Aún no tienen el CFD? Los datos de ejemplo imitan un resultado de Flow "
+        st.caption("¿Aún no tienen el CFD? Los datos de ejemplo imitan un resultado de Flow "
                    "Simulation para ver cómo se presenta la comparación.")
         return None
 

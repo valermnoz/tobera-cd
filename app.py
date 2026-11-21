@@ -45,7 +45,7 @@ from tobera import curva_empuje
 VERSION = "2.0"
 
 st.set_page_config(page_title="TOBERA-CD · Suite de diseño de toberas", page_icon="🚀",
-                   layout="wide", initial_sidebar_state="expanded")
+                   layout="wide", initial_sidebar_state="auto")  # en celular empieza cerrada
 estilo.aplicar()
 
 DIR_ASSETS = Path(__file__).parent / "assets"
@@ -241,16 +241,15 @@ def pestana_caso():
                    "Al guardar se reemplaza. Cambia el nombre o confirma.")
         bloqueado = not st.checkbox(f"Sí, reemplazar casos/{destino}", key=f"conf_{destino}")
 
-    b1, b2, b3, _ = st.columns([1, 1.3, 1.3, 3])
-    guardar = b1.button("Guardar", disabled=bloqueado, width="stretch")
-    simular = b2.button("Guardar y simular", type="primary", disabled=bloqueado,
-                        width="stretch")
+    # Fila de botones del ancho de su texto (no se cortan en pantallas chicas)
+    botones = st.container(horizontal=True)
+    guardar = botones.button("Guardar", disabled=bloqueado)
+    simular = botones.button("Guardar y simular", type="primary", disabled=bloqueado)
     if caso is None:
         st.error(f"Revisa el formulario: {error}")
     else:
-        b3.download_button("Descargar .json", cfg.caso_a_json(caso),
-                           file_name=f"{caso['nombre']}.json", mime="application/json",
-                           width="stretch")
+        botones.download_button("Descargar .json", cfg.caso_a_json(caso),
+                                file_name=f"{caso['nombre']}.json", mime="application/json")
     if guardar or simular:
         _guardar_y_simular(caso, simular)
 
@@ -294,13 +293,12 @@ def pestana_resultados(resultado):
         st.error(str(e))
         return
 
-    t1, t2 = st.columns([4, 1])
-    t1.subheader(datos["nombre"])
+    st.subheader(datos["nombre"])
     if datos["descripcion"]:
-        t1.caption(datos["descripcion"])
+        st.caption(datos["descripcion"])
     if "pdf" not in resultado:
         resultado["pdf"] = generar_pdf(caso, res, resultado["salida"])
-    t2.download_button("⬇  Reporte PDF", resultado["pdf"], type="primary", width="stretch",
+    st.download_button("⬇  Reporte PDF", resultado["pdf"], type="primary",
                        file_name=f"reporte_{cfg.nombre_archivo(caso['nombre'])}.pdf",
                        mime="application/pdf", key=f"pdf_{resultado['id']}")
 
@@ -486,9 +484,8 @@ def pantalla_inicio():
         f'<div class="creditos-foto">{escape(IMAGENES[0][1])}</div></div>',
         unsafe_allow_html=True,
     )
-    c1, _ = st.columns([1.3, 4])
-    c1.button("Iniciar sesión de diseño  →", type="primary", on_click=_entrar,
-              width="stretch", key="comenzar")
+    st.button("Iniciar sesión de diseño  →", type="primary", on_click=_entrar,
+              key="comenzar")
 
     lecturas = _caso_referencia()
     if lecturas:
